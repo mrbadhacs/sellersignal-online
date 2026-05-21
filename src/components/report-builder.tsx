@@ -46,6 +46,7 @@ export function ReportBuilder() {
   const [tier, setTier] = useState<ReviewTier>("growth");
   const [report, setReport] = useState<InsightReport | null>(null);
   const [error, setError] = useState("");
+  const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
   const selected = REVIEW_TIERS[tier];
@@ -72,6 +73,7 @@ export function ReportBuilder() {
     }
 
     setReport(data.report);
+    await refreshCredits(email);
   }
 
   async function downloadPdf() {
@@ -95,11 +97,28 @@ export function ReportBuilder() {
     const response = await fetch("/api/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode, plan }),
+      body: JSON.stringify({ mode, plan, email }),
     });
     const data = await response.json();
     if (data.url) window.location.href = data.url;
     else setError(data.error || "Stripe is not configured yet.");
+  }
+
+  async function refreshCredits(emailToCheck = email) {
+    if (!emailToCheck) {
+      setError("Enter your email first so we can check credits for that account.");
+      return;
+    }
+
+    const response = await fetch(`/api/credits?email=${encodeURIComponent(emailToCheck)}`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      setError(data.error || "Could not check credits.");
+      return;
+    }
+
+    setCreditBalance(data.balance);
   }
 
   return (
@@ -158,6 +177,14 @@ export function ReportBuilder() {
               placeholder="Email report to you@brand.com"
               className="mt-4 h-12 w-full rounded-md border border-neutral-200 px-3 outline-none focus:border-neutral-950"
             />
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-md bg-neutral-100 p-3 text-xs text-neutral-600">
+              <span>
+                {creditBalance === null ? "Enter an email to check credits." : `${creditBalance} credit${creditBalance === 1 ? "" : "s"} available`}
+              </span>
+              <button type="button" onClick={() => refreshCredits()} className="font-semibold text-neutral-950">
+                Check credits
+              </button>
+            </div>
             <button
               disabled={loading}
               className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-md bg-neutral-950 px-4 font-medium text-white transition hover:bg-neutral-800 disabled:cursor-wait disabled:opacity-70"

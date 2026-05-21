@@ -36,6 +36,7 @@ Copy `.env.example` into Replit Secrets and fill in:
 - `RESEND_API_KEY`
 - `REPORT_FROM_EMAIL`
 - Supabase URL, anon key, and service role key
+- `STRIPE_WEBHOOK_SECRET`
 
 ## Credit Model
 
@@ -57,9 +58,8 @@ Credits never expire. When a subscription renews, add credits to the user's ledg
 
 ## Implementation Tasks
 
-1. Keep the current homepage UI, but add Supabase Auth for accounts.
-2. Add Stripe webhook handling for successful checkouts, subscription renewals, and cancellations.
-3. Add Supabase tables for profiles, credit_ledger, reports, report_reviews, and purchases.
-4. Store every generated report so logged-in users can view their report history.
+1. Run `supabase.sql` in the Supabase SQL Editor.
+2. Use `/api/stripe/webhook` as the Stripe webhook endpoint.
+3. Keep demo mode active only when Apify/OpenAI API keys are missing.
+4. Add Supabase Auth for full account dashboards after the email-based MVP is tested.
 5. Make PDF download work from saved report records, not only the browser state.
-6. Keep demo mode active only when API keys are missing.

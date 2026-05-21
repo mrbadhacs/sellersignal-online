@@ -1,0 +1,78 @@
+# SellerSignal Testing Checklist
+
+## 1. Run the canonical Supabase SQL
+
+In Supabase SQL Editor, run the full contents of `supabase.sql`.
+
+To grant yourself test credits, run this after replacing the email:
+
+```sql
+with profile as (
+  insert into profiles (email)
+  values ('YOUR_EMAIL_HERE')
+  on conflict (email) do update set email = excluded.email
+  returning id
+)
+insert into credit_ledger (user_id, amount, reason)
+select id, 10, 'manual founder test credit'
+from profile;
+```
+
+## 2. Required Replit Secrets
+
+```txt
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+STRIPE_PRICE_REPORT_100=
+STRIPE_PRICE_REPORT_250=
+STRIPE_PRICE_REPORT_500=
+STRIPE_PRICE_REPORT_1000=
+STRIPE_PRICE_SOLO=
+STRIPE_PRICE_GROWTH=
+STRIPE_PRICE_BRAND=
+STRIPE_PRICE_AGENCY=
+
+OPENAI_API_KEY=
+APIFY_API_TOKEN=
+RESEND_API_KEY=
+REPORT_FROM_EMAIL=reports@sellersignal.online
+NEXT_PUBLIC_APP_URL=
+```
+
+## 3. Stripe Webhook
+
+Use this endpoint path:
+
+```txt
+/api/stripe/webhook
+```
+
+For the Replit dev URL:
+
+```txt
+https://YOUR-REPLIT-URL/api/stripe/webhook
+```
+
+Events:
+
+```txt
+checkout.session.completed
+invoice.payment_succeeded
+customer.subscription.deleted
+```
+
+## 4. Test Flow
+
+1. Enter your email in the report form.
+2. Click `Check credits`.
+3. Confirm your manual credit balance appears.
+4. Paste an Amazon product URL.
+5. Generate a report.
+6. Confirm credits decrement in the UI and in Supabase.
+7. Test a Stripe checkout with `4242 4242 4242 4242`.
+8. Confirm Stripe webhook events show a `200`.
+9. Check Supabase `credit_ledger` for the new credit row.
