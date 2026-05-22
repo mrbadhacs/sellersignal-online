@@ -7,6 +7,7 @@ export function createDemoReport(productUrl: string, tier: ReviewTier): InsightR
     id: crypto.randomUUID(),
     productUrl,
     productName: "Competitor product intelligence sample",
+    requestedReviewCount: selected.reviews,
     reviewCount: selected.reviews,
     tier,
     generatedAt: new Date().toISOString(),

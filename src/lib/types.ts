@@ -14,6 +14,7 @@ export type InsightReport = {
   id: string;
   productUrl: string;
   productName: string;
+  requestedReviewCount?: number;
   reviewCount: number;
   tier: ReviewTier;
   generatedAt: string;

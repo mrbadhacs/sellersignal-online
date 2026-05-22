@@ -12,6 +12,7 @@ function getOpenAI() {
 export async function analyzeReviews(input: {
   productUrl: string;
   productName: string;
+  requestedReviewCount: number;
   tier: ReviewTier;
   reviews: ReviewRecord[];
 }): Promise<InsightReport> {
@@ -43,6 +44,7 @@ export async function analyzeReviews(input: {
             "Analyze competitor Amazon reviews. Identify compliments, complaints, repeated customer language, product improvement opportunities, positioning angles, and marketing copy ideas.",
           productUrl: input.productUrl,
           productName: input.productName,
+          requestedReviewCount: input.requestedReviewCount,
           reviewCount: input.reviews.length,
           reviews: reviewSample,
           schema: {
@@ -72,6 +74,7 @@ export async function analyzeReviews(input: {
     id: crypto.randomUUID(),
     productUrl: input.productUrl,
     productName: input.productName,
+    requestedReviewCount: input.requestedReviewCount,
     reviewCount: input.reviews.length,
     tier: input.tier,
     generatedAt: new Date().toISOString(),

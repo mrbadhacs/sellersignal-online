@@ -59,9 +59,15 @@ export async function POST(request: Request) {
     }
 
     const scrape = await scrapeAmazonReviews(productUrl, maxReviews);
+
+    if (scrape.reviews.length === 0) {
+      throw new Error("No public reviews could be retrieved for this product. Try another Amazon.com product URL.");
+    }
+
     const report = await analyzeReviews({
       productUrl,
       productName: scrape.productName,
+      requestedReviewCount: maxReviews,
       tier,
       reviews: scrape.reviews,
     });

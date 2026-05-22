@@ -1,7 +1,8 @@
 "use client";
 
-import { ArrowDownToLine, ChartNoAxesCombined, Loader2, Sparkles } from "lucide-react";
-import { FormEvent, useMemo, useState } from "react";
+import { ArrowDownToLine, ChartNoAxesCombined, FileText, Loader2, Sparkles } from "lucide-react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { createDemoReport } from "@/lib/mock-report";
 import { InsightReport, ReviewTier, REVIEW_TIERS } from "@/lib/types";
 
 const plans = [
@@ -40,40 +41,74 @@ const reportExpectations = [
 const complianceCopy =
   "SellerSignal is for public-review market research only. Do not submit Seller Central data, private customer data, or non-public information. You are responsible for following marketplace terms and applicable privacy laws.";
 
+type SavedReport = {
+  id: string;
+  productName: string;
+  productUrl: string;
+  reviewCount: number;
+  createdAt: string;
+  report: InsightReport;
+};
+
 export function ReportBuilder() {
   const [productUrl, setProductUrl] = useState("");
   const [email, setEmail] = useState("");
   const [tier, setTier] = useState<ReviewTier>("growth");
   const [report, setReport] = useState<InsightReport | null>(null);
+  const [reportHistory, setReportHistory] = useState<SavedReport[]>([]);
   const [error, setError] = useState("");
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("");
+  const reportRef = useRef<HTMLElement | null>(null);
 
   const selected = REVIEW_TIERS[tier];
   const costNote = useMemo(() => `${selected.credits} credit${selected.credits > 1 ? "s" : ""} • ${selected.label}`, [selected]);
+  const reportShortfall =
+    report?.requestedReviewCount && report.reviewCount < report.requestedReviewCount
+      ? `Only ${report.reviewCount} public review${report.reviewCount === 1 ? "" : "s"} were available. You requested ${report.requestedReviewCount}, so this report uses every review we could retrieve.`
+      : "";
+
+  useEffect(() => {
+    if (report) {
+      window.requestAnimationFrame(() => reportRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
+  }, [report?.id, report]);
 
   async function submitReport(event: FormEvent) {
     event.preventDefault();
     setLoading(true);
     setError("");
     setReport(null);
+    setLoadingMessage("Scraping public reviews...");
 
-    const response = await fetch("/api/reports", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ productUrl, email, tier }),
-    });
+    const loadingTimers = [
+      window.setTimeout(() => setLoadingMessage("Analyzing customer sentiment..."), 2600),
+      window.setTimeout(() => setLoadingMessage("Building your PDF-ready report..."), 6200),
+    ];
 
-    const data = await response.json();
-    setLoading(false);
+    try {
+      const response = await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productUrl, email, tier }),
+      });
 
-    if (!response.ok) {
-      setError(data.error || "Something went wrong.");
-      return;
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || "Something went wrong.");
+        return;
+      }
+
+      setReport(data.report);
+      await refreshCredits(email);
+      await refreshHistory(email);
+    } finally {
+      loadingTimers.forEach(window.clearTimeout);
+      setLoading(false);
+      setLoadingMessage("");
     }
-
-    setReport(data.report);
-    await refreshCredits(email);
   }
 
   async function downloadPdf() {
@@ -119,6 +154,22 @@ export function ReportBuilder() {
     }
 
     setCreditBalance(data.balance);
+    await refreshHistory(emailToCheck);
+  }
+
+  async function refreshHistory(emailToCheck = email) {
+    if (!emailToCheck) return;
+
+    const response = await fetch(`/api/report-history?email=${encodeURIComponent(emailToCheck)}`);
+    const data = await response.json();
+
+    if (response.ok) {
+      setReportHistory(data.reports || []);
+    }
+  }
+
+  function showSampleReport() {
+    setReport(createDemoReport("https://www.amazon.com/dp/B0SAMPLE123", "growth"));
   }
 
   return (
@@ -190,9 +241,13 @@ export function ReportBuilder() {
               className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-md bg-neutral-950 px-4 font-medium text-white transition hover:bg-neutral-800 disabled:cursor-wait disabled:opacity-70"
             >
               {loading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-              Generate report
+              {loading ? "Generating..." : "Generate report"}
             </button>
+            {loadingMessage && <p className="mt-3 text-center text-sm font-medium text-neutral-600">{loadingMessage}</p>}
             <p className="mt-3 text-center text-xs text-neutral-500">{costNote}</p>
+            <button type="button" onClick={showSampleReport} className="mt-2 w-full text-center text-xs font-semibold text-neutral-950 underline underline-offset-4">
+              View sample report
+            </button>
             <p className="mt-3 rounded-md bg-neutral-100 p-3 text-xs leading-5 text-neutral-500">{complianceCopy}</p>
             {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
           </form>
@@ -285,14 +340,52 @@ export function ReportBuilder() {
         <p className="mt-6 rounded-lg border border-neutral-200 bg-white p-4 text-sm leading-6 text-neutral-500">{complianceCopy}</p>
       </section>
 
+      <section className="mx-auto max-w-7xl px-5 py-12">
+        <div className="border-t border-neutral-300 pt-10">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="text-sm uppercase tracking-[0.25em] text-neutral-500">Report history</p>
+              <h2 className="mt-4 text-3xl font-semibold tracking-normal">Saved reports stay available after refresh.</h2>
+            </div>
+            <button type="button" onClick={() => refreshHistory()} className="rounded-md border border-neutral-300 px-4 py-3 text-sm font-semibold">
+              Refresh history
+            </button>
+          </div>
+
+          {reportHistory.length === 0 ? (
+            <div className="mt-6 rounded-lg border border-neutral-200 bg-white p-6 text-sm leading-6 text-neutral-500">
+              Enter your email and generate a report to see saved history here. Reports are stored with the email/account that created them.
+            </div>
+          ) : (
+            <div className="mt-6 grid gap-4 lg:grid-cols-3">
+              {reportHistory.map((savedReport) => (
+                <button
+                  key={savedReport.id}
+                  type="button"
+                  onClick={() => setReport(savedReport.report)}
+                  className="rounded-lg border border-neutral-200 bg-white p-5 text-left transition hover:border-neutral-950"
+                >
+                  <FileText className="mb-4 size-5" />
+                  <span className="block text-base font-semibold">{savedReport.productName}</span>
+                  <span className="mt-3 block text-sm text-neutral-500">
+                    {savedReport.reviewCount} reviews • {new Date(savedReport.createdAt).toLocaleDateString()}
+                  </span>
+                  <span className="mt-4 block text-xs font-semibold text-neutral-950">Open report</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
       {report && (
-        <section className="mx-auto max-w-7xl px-5 pb-16">
+        <section ref={reportRef} className="mx-auto max-w-7xl px-5 pb-16 scroll-mt-6">
           <div className="flex flex-wrap items-center justify-between gap-4 border-y border-neutral-300 py-5">
             <div>
               <p className="text-sm uppercase tracking-[0.22em] text-neutral-500">
                 {report.demoMode ? "Demo report" : "Live report"}
               </p>
-              <h2 className="mt-2 text-3xl font-semibold">{report.productName}</h2>
+              <h2 className="mt-2 max-w-5xl text-3xl font-semibold leading-tight">{report.productName}</h2>
             </div>
             <button onClick={downloadPdf} className="flex items-center gap-2 rounded-md bg-neutral-950 px-4 py-3 text-sm text-white">
               <ArrowDownToLine className="size-4" />
@@ -300,12 +393,21 @@ export function ReportBuilder() {
             </button>
           </div>
 
-          <div className="grid gap-6 py-8 lg:grid-cols-[.8fr_1.2fr]">
+          {reportShortfall && (
+            <div className="mt-6 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+              {reportShortfall}
+            </div>
+          )}
+
+          <div className="grid gap-6 py-8 lg:grid-cols-[.7fr_1.3fr]">
             <div>
               <ChartNoAxesCombined className="mb-4 size-6" />
-              <p className="text-5xl font-semibold">{report.ratingBreakdown.average.toFixed(1)}</p>
-              <p className="mt-2 text-sm text-neutral-500">{report.reviewCount} reviews analyzed</p>
-              <p className="mt-6 leading-7 text-neutral-700">{report.executiveSummary}</p>
+              <p className="text-4xl font-semibold">{report.ratingBreakdown.average.toFixed(1)}</p>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs font-medium text-neutral-600">
+                <span className="rounded-full bg-white px-3 py-1">{report.reviewCount} analyzed</span>
+                {report.requestedReviewCount && <span className="rounded-full bg-white px-3 py-1">{report.requestedReviewCount} requested</span>}
+              </div>
+              <p className="mt-6 text-base leading-7 text-neutral-700">{report.executiveSummary}</p>
             </div>
             <div className="grid gap-5 md:grid-cols-2">
               <InsightList title="Top compliments" items={report.topCompliments} />

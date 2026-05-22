@@ -18,6 +18,7 @@ export async function emailReport(to: string | undefined, report: InsightReport)
     subject: `Your ${report.productName} review intelligence report`,
     html: `
       <h1>${report.productName}</h1>
+      <p>${report.reviewCount} reviews analyzed${report.requestedReviewCount ? ` out of ${report.requestedReviewCount} requested` : ""}.</p>
       <p>${report.executiveSummary}</p>
       <h2>Top complaints</h2>
       <ul>${report.topComplaints.map((item) => `<li>${item}</li>`).join("")}</ul>

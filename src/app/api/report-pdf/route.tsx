@@ -19,8 +19,14 @@ function ReportDocument({ report }: { report: InsightReport }) {
       <Page size="A4" style={styles.page}>
         <Text style={styles.title}>{report.productName}</Text>
         <Text style={styles.subtitle}>
-          {report.reviewCount} reviews analyzed • {new Date(report.generatedAt).toLocaleDateString()}
+          {report.reviewCount} reviews analyzed
+          {report.requestedReviewCount ? ` • ${report.requestedReviewCount} requested` : ""} • {new Date(report.generatedAt).toLocaleDateString()}
         </Text>
+        {report.requestedReviewCount && report.reviewCount < report.requestedReviewCount ? (
+          <Text>
+            Only {report.reviewCount} public reviews were available. This report uses every review we could retrieve.
+          </Text>
+        ) : null}
         <Text>{report.executiveSummary}</Text>
         <View style={styles.section}><Text style={styles.heading}>Top compliments</Text>{list(report.topCompliments)}</View>
         <View style={styles.section}><Text style={styles.heading}>Top complaints</Text>{list(report.topComplaints)}</View>
