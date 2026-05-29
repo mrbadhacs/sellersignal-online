@@ -8,18 +8,6 @@ const REVIEW_PASSES = [
   { sort: "helpful", filterByStars: "all" },
   { sort: "helpful", filterByStars: "critical" },
   { sort: "recent", filterByStars: "critical" },
-  { sort: "helpful", filterByStars: "positive" },
-  { sort: "recent", filterByStars: "positive" },
-  { sort: "helpful", filterByStars: "one_star" },
-  { sort: "helpful", filterByStars: "two_star" },
-  { sort: "helpful", filterByStars: "three_star" },
-  { sort: "helpful", filterByStars: "four_star" },
-  { sort: "helpful", filterByStars: "five_star" },
-  { sort: "recent", filterByStars: "one_star" },
-  { sort: "recent", filterByStars: "two_star" },
-  { sort: "recent", filterByStars: "three_star" },
-  { sort: "recent", filterByStars: "four_star" },
-  { sort: "recent", filterByStars: "five_star" },
 ] as const;
 
 function extractAsin(input: string) {
@@ -51,6 +39,23 @@ export async function scrapeAmazonReviews(productUrl: string, maxReviews: number
   const actorId = process.env.APIFY_ACTOR_ID || DEFAULT_ACTOR_ID;
   const normalizedProductUrl = `https://www.amazon.com/dp/${asin}`;
 
+  if (actorId.includes("webdatalabs/amazon-reviews-scraper")) {
+    const run = await client.actor(actorId).call({
+      productUrls: [{ url: normalizedProductUrl }],
+      maxReviewsPerProduct: maxReviews,
+      starRatings: [1, 2, 3, 4, 5],
+      sortBy: "helpful",
+      verifiedOnly: false,
+    });
+
+    const { items } = await client.dataset(run.defaultDatasetId).listItems();
+    return {
+      asin,
+      productName: String(items[0]?.productName ?? items[0]?.productTitle ?? items[0]?.product_title ?? `Amazon ASIN ${asin}`),
+      reviews: normalizeReviews(items).slice(0, maxReviews),
+    };
+  }
+
   const reviewMap = new Map<string, ReviewRecord>();
   let productName = `Amazon ASIN ${asin}`;
 
@@ -70,7 +75,7 @@ export async function scrapeAmazonReviews(productUrl: string, maxReviews: number
       sortBy: pass.sort,
       filterByStars: pass.filterByStars,
       filterByRating: pass.filterByStars,
-      maxRequestRetries: 7,
+      maxRequestRetries: 3,
       verifiedOnly: false,
       includeImages: false,
       includeGdprSensitive: false,
@@ -82,17 +87,7 @@ export async function scrapeAmazonReviews(productUrl: string, maxReviews: number
       productName = String(firstItem.productName ?? firstItem.productTitle ?? firstItem.product_title ?? productName);
     }
 
-    for (const item of items) {
-      const review: ReviewRecord = {
-        rating: Number(item.rating ?? item.ratingScore ?? item.reviewRating ?? item.stars ?? 0),
-        title: String(item.title ?? item.reviewTitle ?? item.review_title ?? ""),
-        body: String(item.body ?? item.text ?? item.reviewText ?? item.review_body ?? item.reviewDescription ?? ""),
-        date: String(item.date ?? item.reviewDate ?? item.review_date_iso ?? ""),
-        verified: Boolean(item.verified ?? item.isVerified ?? item.isVerifiedPurchase ?? item.is_verified_purchase ?? item.reviewIsVerified),
-        helpfulVotes: Number(item.helpfulVotes ?? item.helpfulCount ?? item.helpful_votes ?? 0),
-        variant: String(item.variant ?? ""),
-      };
-
+    for (const review of normalizeReviews(items)) {
       if (!review.body) continue;
       const dedupeKey = [
         review.rating,
@@ -112,4 +107,16 @@ export async function scrapeAmazonReviews(productUrl: string, maxReviews: number
     productName,
     reviews,
   };
+}
+
+function normalizeReviews(items: Record<string, unknown>[]) {
+  return items.map((item) => ({
+    rating: Number(item.rating ?? item.ratingScore ?? item.reviewRating ?? item.stars ?? 0),
+    title: String(item.title ?? item.reviewTitle ?? item.review_title ?? ""),
+    body: String(item.body ?? item.text ?? item.reviewText ?? item.review_body ?? item.reviewDescription ?? ""),
+    date: String(item.date ?? item.reviewDate ?? item.review_date_iso ?? ""),
+    verified: Boolean(item.verified ?? item.isVerified ?? item.isVerifiedPurchase ?? item.is_verified_purchase ?? item.reviewIsVerified),
+    helpfulVotes: Number(item.helpfulVotes ?? item.helpfulCount ?? item.helpful_votes ?? 0),
+    variant: String(item.variant ?? item.productVariant ?? ""),
+  })).filter((review) => review.body.length > 0);
 }

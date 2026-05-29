@@ -41,6 +41,26 @@ const reportExpectations = [
 const complianceCopy =
   "SellerSignal is for public-review market research only. Do not submit Seller Central data, private customer data, or non-public information. You are responsible for following marketplace terms and applicable privacy laws.";
 
+const generationSteps = [
+  "Checking your report credits...",
+  "Opening the public Amazon review trail...",
+  "Collecting recent customer language...",
+  "Separating compliments from complaints...",
+  "Finding repeated phrases and product gaps...",
+  "Writing your one-page intelligence report...",
+  "Preparing email and PDF-ready insights...",
+];
+
+const sellerTips = [
+  "Tip: the most useful competitor insights often hide in 2-star and 3-star reviews.",
+  "Tip: repeated customer phrases can become better listing bullets than generic feature copy.",
+  "Tip: product returns often start with mismatched expectations, not just bad quality.",
+  "Tip: helpful negative reviews usually reveal the pain points shoppers care about most.",
+  "Tip: strong listings answer the doubts customers mention before they buy.",
+  "Tip: packaging, instructions, and sizing complaints are often fixable before manufacturing changes.",
+  "Tip: competitor compliments can show which benefits your listing needs to match or beat.",
+];
+
 type SavedReport = {
   id: string;
   productName: string;
@@ -65,6 +85,7 @@ export function ReportBuilder() {
   const [creditFlash, setCreditFlash] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("");
+  const [loadingStep, setLoadingStep] = useState(0);
   const reportRef = useRef<HTMLElement | null>(null);
 
   const selected = REVIEW_TIERS[tier];
@@ -88,26 +109,38 @@ export function ReportBuilder() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!loading) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      setLoadingStep((current) => (current + 1) % generationSteps.length);
+    }, 2400);
+
+    return () => window.clearInterval(interval);
+  }, [loading]);
+
   async function submitReport(event: FormEvent) {
     event.preventDefault();
     setLoading(true);
     setError("");
     setReport(null);
     setLoadingMessage("Scraping public reviews...");
+    setLoadingStep(0);
 
-    const loadingTimers = [
-      window.setTimeout(() => setLoadingMessage("Analyzing customer sentiment..."), 2600),
-      window.setTimeout(() => setLoadingMessage("Building your PDF-ready report..."), 6200),
-    ];
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 85000);
 
     try {
       const response = await fetch("/api/reports", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ productUrl, email, tier }),
+        signal: controller.signal,
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({ error: "The report request ended before the server returned a readable response." }));
 
       if (!response.ok) {
         setError(data.error || "Something went wrong.");
@@ -117,10 +150,17 @@ export function ReportBuilder() {
       setReport(data.report);
       await refreshCredits(email);
       await refreshHistory(email);
+    } catch (requestError) {
+      setError(
+        requestError instanceof DOMException && requestError.name === "AbortError"
+          ? "The scraper took too long to finish. Try the 100-review report, or switch to the stronger Apify actor before running larger reports."
+          : "The report could not be generated. Please try again.",
+      );
     } finally {
-      loadingTimers.forEach(window.clearTimeout);
+      window.clearTimeout(timeout);
       setLoading(false);
       setLoadingMessage("");
+      setLoadingStep(0);
     }
   }
 
@@ -293,7 +333,21 @@ export function ReportBuilder() {
               {loading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
               {loading ? "Generating..." : "Generate report"}
             </button>
-            {loadingMessage && <p className="mt-3 text-center text-sm font-medium text-neutral-600">{loadingMessage}</p>}
+            {loading && (
+              <div className="mt-4 overflow-hidden rounded-md border border-neutral-200 bg-neutral-50">
+                <div className="h-1 bg-neutral-200">
+                  <div
+                    className="h-full bg-neutral-950 transition-all duration-700"
+                    style={{ width: `${Math.max(16, ((loadingStep + 1) / generationSteps.length) * 100)}%` }}
+                  />
+                </div>
+                <div className="p-3">
+                  <p className="text-sm font-semibold text-neutral-900">{generationSteps[loadingStep]}</p>
+                  <p className="mt-2 text-xs leading-5 text-neutral-600">{sellerTips[loadingStep]}</p>
+                </div>
+              </div>
+            )}
+            {loadingMessage && !loading && <p className="mt-3 text-center text-sm font-medium text-neutral-600">{loadingMessage}</p>}
             <p className="mt-3 text-center text-xs text-neutral-500">{costNote}</p>
             <button type="button" onClick={showSampleReport} className="mt-2 w-full text-center text-xs font-semibold text-neutral-950 underline underline-offset-4">
               View sample report
