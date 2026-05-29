@@ -304,55 +304,7 @@ export function ReportBuilder() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-5 py-8">
-        <div className={`rounded-lg border bg-white p-5 transition-colors ${creditFlash ? "border-emerald-500 bg-emerald-50" : "border-neutral-200"}`}>
-          <div className="grid gap-5 lg:grid-cols-[.8fr_1.2fr] lg:items-end">
-            <div>
-              <p className="text-sm uppercase tracking-[0.25em] text-neutral-500">Account & credits</p>
-              <h2 className="mt-3 text-3xl font-semibold tracking-normal">Check your available report credits.</h2>
-              <p className="mt-3 text-sm leading-6 text-neutral-600">
-                Use the same email you used at checkout or during testing. SellerSignal will remember it on this browser so you can
-                come back and reopen saved reports.
-              </p>
-            </div>
-            <div>
-              <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
-                <input
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="you@brand.com"
-                  className="h-12 rounded-md border border-neutral-200 px-3 outline-none focus:border-neutral-950"
-                />
-                <button
-                  type="button"
-                  onClick={() => refreshCredits()}
-                  disabled={creditStatus === "checking"}
-                  className="flex h-12 items-center justify-center gap-2 rounded-md bg-neutral-950 px-5 text-sm font-semibold text-white disabled:opacity-70"
-                >
-                  {creditStatus === "checking" && <Loader2 className="size-4 animate-spin" />}
-                  Check credits
-                </button>
-                <button type="button" onClick={clearAccount} className="h-12 rounded-md border border-neutral-200 px-4 text-sm font-semibold">
-                  Clear
-                </button>
-              </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-[auto_1fr] sm:items-center">
-                <div className="rounded-md bg-neutral-100 px-4 py-3">
-                  <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Balance</span>
-                  <span className="mt-1 block text-3xl font-semibold">{creditBalance === null ? "--" : creditBalance}</span>
-                </div>
-                <p
-                  className={`text-sm leading-6 ${
-                    creditStatus === "success" ? "text-emerald-700" : creditStatus === "error" ? "text-red-600" : "text-neutral-500"
-                  }`}
-                >
-                  {creditMessage || "Enter your email and click Check credits to confirm Vercel is connected to Supabase."}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+
 
       <section className="mx-auto max-w-7xl px-5 py-12">
         <div className="grid gap-8 border-y border-neutral-300 py-12 lg:grid-cols-[.85fr_1.15fr]">
@@ -475,6 +427,56 @@ export function ReportBuilder() {
               ))}
             </div>
           )}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-5 py-8">
+        <div className={`rounded-lg border bg-white p-5 transition-colors ${creditFlash ? "border-emerald-500 bg-emerald-50" : "border-neutral-200"}`}>
+          <div className="grid gap-5 lg:grid-cols-[.8fr_1.2fr] lg:items-end">
+            <div>
+              <p className="text-sm uppercase tracking-[0.25em] text-neutral-500">Account & credits</p>
+              <h2 className="mt-3 text-3xl font-semibold tracking-normal">Check your available report credits.</h2>
+              <p className="mt-3 text-sm leading-6 text-neutral-600">
+                Use the same email you used at checkout or during testing. SellerSignal will remember it on this browser so you can
+                come back and reopen saved reports.
+              </p>
+            </div>
+            <div>
+              <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
+                <input
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="you@brand.com"
+                  className="h-12 rounded-md border border-neutral-200 px-3 outline-none focus:border-neutral-950"
+                />
+                <button
+                  type="button"
+                  onClick={() => refreshCredits()}
+                  disabled={creditStatus === "checking"}
+                  className="flex h-12 items-center justify-center gap-2 rounded-md bg-neutral-950 px-5 text-sm font-semibold text-white disabled:opacity-70"
+                >
+                  {creditStatus === "checking" && <Loader2 className="size-4 animate-spin" />}
+                  Check credits
+                </button>
+                <button type="button" onClick={clearAccount} className="h-12 rounded-md border border-neutral-200 px-4 text-sm font-semibold">
+                  Clear
+                </button>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-[auto_1fr] sm:items-center">
+                <div className="rounded-md bg-neutral-100 px-4 py-3">
+                  <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Balance</span>
+                  <span className="mt-1 block text-3xl font-semibold">{creditBalance === null ? "--" : creditBalance}</span>
+                </div>
+                <p
+                  className={`text-sm leading-6 ${
+                    creditStatus === "success" ? "text-emerald-700" : creditStatus === "error" ? "text-red-600" : "text-neutral-500"
+                  }`}
+                >
+                  {creditMessage || "Enter your email and click Check credits to confirm Vercel is connected to Supabase."}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
