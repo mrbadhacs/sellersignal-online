@@ -3,13 +3,36 @@ import { ReviewRecord } from "./types";
 
 const DEFAULT_ACTOR_ID = "automation-lab/amazon-reviews-scraper";
 const ACTOR_MAX_REVIEWS_PER_RUN = 100;
+const REVIEW_PASSES = [
+  { sort: "recent", filterByStars: "all" },
+  { sort: "helpful", filterByStars: "all" },
+  { sort: "helpful", filterByStars: "critical" },
+  { sort: "recent", filterByStars: "critical" },
+  { sort: "helpful", filterByStars: "positive" },
+  { sort: "recent", filterByStars: "positive" },
+  { sort: "helpful", filterByStars: "one_star" },
+  { sort: "helpful", filterByStars: "two_star" },
+  { sort: "helpful", filterByStars: "three_star" },
+  { sort: "helpful", filterByStars: "four_star" },
+  { sort: "helpful", filterByStars: "five_star" },
+  { sort: "recent", filterByStars: "one_star" },
+  { sort: "recent", filterByStars: "two_star" },
+  { sort: "recent", filterByStars: "three_star" },
+  { sort: "recent", filterByStars: "four_star" },
+  { sort: "recent", filterByStars: "five_star" },
+] as const;
 
 function extractAsin(input: string) {
   const trimmed = input.trim();
   const direct = trimmed.match(/^[A-Z0-9]{10}$/i)?.[0];
   if (direct) return direct.toUpperCase();
 
-  const patterns = [/\/dp\/([A-Z0-9]{10})/i, /\/gp\/product\/([A-Z0-9]{10})/i, /\/product\/([A-Z0-9]{10})/i];
+  const patterns = [
+    /\/dp\/([A-Z0-9]{10})/i,
+    /\/gp\/product\/([A-Z0-9]{10})/i,
+    /\/product\/([A-Z0-9]{10})/i,
+    /\/product-reviews\/([A-Z0-9]{10})/i,
+  ];
   for (const pattern of patterns) {
     const match = trimmed.match(pattern);
     if (match?.[1]) return match[1].toUpperCase();
@@ -26,15 +49,12 @@ export async function scrapeAmazonReviews(productUrl: string, maxReviews: number
   const client = new ApifyClient({ token: process.env.APIFY_API_TOKEN });
   const asin = extractAsin(productUrl);
   const actorId = process.env.APIFY_ACTOR_ID || DEFAULT_ACTOR_ID;
-  const normalizedProductUrl = productUrl.trim().match(/^https?:\/\//i)
-    ? productUrl.trim()
-    : `https://www.amazon.com/dp/${asin}`;
+  const normalizedProductUrl = `https://www.amazon.com/dp/${asin}`;
 
   const reviewMap = new Map<string, ReviewRecord>();
   let productName = `Amazon ASIN ${asin}`;
-  const starPasses = ["all", "one_star", "two_star", "three_star", "four_star", "five_star"];
 
-  for (const starFilter of starPasses) {
+  for (const pass of REVIEW_PASSES) {
     if (reviewMap.size >= maxReviews) break;
 
     const remaining = maxReviews - reviewMap.size;
@@ -46,10 +66,11 @@ export async function scrapeAmazonReviews(productUrl: string, maxReviews: number
       country: "amazon.com",
       maxReviews: runLimit,
       maxReviewsPerProduct: runLimit,
-      sort: "recent",
-      sortBy: "recent",
-      filterByStars: starFilter,
-      filterByRating: starFilter,
+      sort: pass.sort,
+      sortBy: pass.sort,
+      filterByStars: pass.filterByStars,
+      filterByRating: pass.filterByStars,
+      maxRequestRetries: 7,
       verifiedOnly: false,
       includeImages: false,
       includeGdprSensitive: false,
