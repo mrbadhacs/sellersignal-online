@@ -32,7 +32,7 @@ export async function scrapeAmazonReviews(productUrl: string, maxReviews: number
 
   const reviewMap = new Map<string, ReviewRecord>();
   let productName = `Amazon ASIN ${asin}`;
-  const starPasses = ["all", "1", "2", "3", "4", "5"];
+  const starPasses = ["all", "one_star", "two_star", "three_star", "four_star", "five_star"];
 
   for (const starFilter of starPasses) {
     if (reviewMap.size >= maxReviews) break;
