@@ -5,9 +5,6 @@ const DEFAULT_ACTOR_ID = "automation-lab/amazon-reviews-scraper";
 const ACTOR_MAX_REVIEWS_PER_RUN = 100;
 const REVIEW_PASSES = [
   { sort: "recent", filterByStars: "all" },
-  { sort: "helpful", filterByStars: "all" },
-  { sort: "helpful", filterByStars: "critical" },
-  { sort: "recent", filterByStars: "critical" },
 ] as const;
 
 function extractAsin(input: string) {
@@ -40,12 +37,15 @@ export async function scrapeAmazonReviews(productUrl: string, maxReviews: number
   const normalizedProductUrl = `https://www.amazon.com/dp/${asin}`;
 
   if (actorId.includes("webdatalabs/amazon-reviews-scraper")) {
+    const amazonCookies = process.env.APIFY_AMAZON_COOKIES?.trim();
+    const reviewLimit = amazonCookies ? maxReviews : Math.min(maxReviews, 15);
     const run = await client.actor(actorId).call({
       productUrls: [{ url: normalizedProductUrl }],
-      maxReviewsPerProduct: maxReviews,
+      maxReviewsPerProduct: reviewLimit,
       starRatings: [1, 2, 3, 4, 5],
       sortBy: "helpful",
       verifiedOnly: false,
+      ...(amazonCookies ? { amazonCookies } : {}),
     });
 
     const { items } = await client.dataset(run.defaultDatasetId).listItems();

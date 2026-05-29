@@ -153,7 +153,7 @@ export function ReportBuilder() {
     } catch (requestError) {
       setError(
         requestError instanceof DOMException && requestError.name === "AbortError"
-          ? "The scraper took too long to finish. Try the 100-review report, or switch to the stronger Apify actor before running larger reports."
+          ? "The scraper took too long to finish. Try the 100-review report, or switch to the stronger Apify actor with Amazon cookies before running larger reports."
           : "The report could not be generated. Please try again.",
       );
     } finally {
