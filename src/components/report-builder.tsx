@@ -52,12 +52,17 @@ type SavedReport = {
 
 export function ReportBuilder() {
   const [productUrl, setProductUrl] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() =>
+    typeof window === "undefined" ? "" : window.localStorage.getItem("sellersignal_email") || "",
+  );
   const [tier, setTier] = useState<ReviewTier>("growth");
   const [report, setReport] = useState<InsightReport | null>(null);
   const [reportHistory, setReportHistory] = useState<SavedReport[]>([]);
   const [error, setError] = useState("");
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
+  const [creditMessage, setCreditMessage] = useState("");
+  const [creditStatus, setCreditStatus] = useState<"idle" | "checking" | "success" | "error">("idle");
+  const [creditFlash, setCreditFlash] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("");
   const reportRef = useRef<HTMLElement | null>(null);
@@ -74,6 +79,14 @@ export function ReportBuilder() {
       window.requestAnimationFrame(() => reportRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
     }
   }, [report?.id, report]);
+
+  useEffect(() => {
+    if (email) {
+      void refreshCredits(email);
+    }
+    // Run once on load to restore the remembered email account.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function submitReport(event: FormEvent) {
     event.preventDefault();
@@ -140,21 +153,47 @@ export function ReportBuilder() {
   }
 
   async function refreshCredits(emailToCheck = email) {
-    if (!emailToCheck) {
-      setError("Enter your email first so we can check credits for that account.");
+    const normalizedEmail = emailToCheck.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      setCreditStatus("error");
+      setCreditMessage("Enter your email to check credits.");
       return;
     }
 
-    const response = await fetch(`/api/credits?email=${encodeURIComponent(emailToCheck)}`);
-    const data = await response.json();
+    setCreditStatus("checking");
+    setCreditMessage("Checking Supabase credits...");
+    setError("");
 
-    if (!response.ok) {
-      setError(data.error || "Could not check credits.");
-      return;
+    try {
+      const response = await fetch(`/api/credits?email=${encodeURIComponent(normalizedEmail)}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        setCreditStatus("error");
+        setCreditMessage(data.error || "Could not check credits.");
+        return;
+      }
+
+      if (data.configured === false) {
+        setCreditStatus("error");
+        setCreditMessage("Supabase is not configured in this deployment.");
+        setCreditBalance(null);
+        return;
+      }
+
+      window.localStorage.setItem("sellersignal_email", normalizedEmail);
+      setEmail(normalizedEmail);
+      setCreditBalance(data.balance);
+      setCreditStatus("success");
+      setCreditMessage(`${data.balance} credit${data.balance === 1 ? "" : "s"} available for ${normalizedEmail}.`);
+      setCreditFlash(true);
+      window.setTimeout(() => setCreditFlash(false), 1400);
+      await refreshHistory(normalizedEmail);
+    } catch {
+      setCreditStatus("error");
+      setCreditMessage("Could not reach the credits endpoint. Check your deployment environment variables.");
     }
-
-    setCreditBalance(data.balance);
-    await refreshHistory(emailToCheck);
   }
 
   async function refreshHistory(emailToCheck = email) {
@@ -170,6 +209,15 @@ export function ReportBuilder() {
 
   function showSampleReport() {
     setReport(createDemoReport("https://www.amazon.com/dp/B0SAMPLE123", "growth"));
+  }
+
+  function clearAccount() {
+    window.localStorage.removeItem("sellersignal_email");
+    setEmail("");
+    setCreditBalance(null);
+    setCreditStatus("idle");
+    setCreditMessage("");
+    setReportHistory([]);
   }
 
   return (
@@ -230,7 +278,9 @@ export function ReportBuilder() {
             />
             <div className="mt-3 flex items-center justify-between gap-3 rounded-md bg-neutral-100 p-3 text-xs text-neutral-600">
               <span>
-                {creditBalance === null ? "Enter an email to check credits." : `${creditBalance} credit${creditBalance === 1 ? "" : "s"} available`}
+                {creditBalance === null
+                  ? "Use the Account & credits panel below to verify credits."
+                  : `${creditBalance} credit${creditBalance === 1 ? "" : "s"} available for this email.`}
               </span>
               <button type="button" onClick={() => refreshCredits()} className="font-semibold text-neutral-950">
                 Check credits
@@ -251,6 +301,56 @@ export function ReportBuilder() {
             <p className="mt-3 rounded-md bg-neutral-100 p-3 text-xs leading-5 text-neutral-500">{complianceCopy}</p>
             {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
           </form>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-5 py-8">
+        <div className={`rounded-lg border bg-white p-5 transition-colors ${creditFlash ? "border-emerald-500 bg-emerald-50" : "border-neutral-200"}`}>
+          <div className="grid gap-5 lg:grid-cols-[.8fr_1.2fr] lg:items-end">
+            <div>
+              <p className="text-sm uppercase tracking-[0.25em] text-neutral-500">Account & credits</p>
+              <h2 className="mt-3 text-3xl font-semibold tracking-normal">Check your available report credits.</h2>
+              <p className="mt-3 text-sm leading-6 text-neutral-600">
+                Use the same email you used at checkout or during testing. SellerSignal will remember it on this browser so you can
+                come back and reopen saved reports.
+              </p>
+            </div>
+            <div>
+              <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
+                <input
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="you@brand.com"
+                  className="h-12 rounded-md border border-neutral-200 px-3 outline-none focus:border-neutral-950"
+                />
+                <button
+                  type="button"
+                  onClick={() => refreshCredits()}
+                  disabled={creditStatus === "checking"}
+                  className="flex h-12 items-center justify-center gap-2 rounded-md bg-neutral-950 px-5 text-sm font-semibold text-white disabled:opacity-70"
+                >
+                  {creditStatus === "checking" && <Loader2 className="size-4 animate-spin" />}
+                  Check credits
+                </button>
+                <button type="button" onClick={clearAccount} className="h-12 rounded-md border border-neutral-200 px-4 text-sm font-semibold">
+                  Clear
+                </button>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-[auto_1fr] sm:items-center">
+                <div className="rounded-md bg-neutral-100 px-4 py-3">
+                  <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Balance</span>
+                  <span className="mt-1 block text-3xl font-semibold">{creditBalance === null ? "--" : creditBalance}</span>
+                </div>
+                <p
+                  className={`text-sm leading-6 ${
+                    creditStatus === "success" ? "text-emerald-700" : creditStatus === "error" ? "text-red-600" : "text-neutral-500"
+                  }`}
+                >
+                  {creditMessage || "Enter your email and click Check credits to confirm Vercel is connected to Supabase."}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
