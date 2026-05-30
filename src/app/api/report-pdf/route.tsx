@@ -20,11 +20,11 @@ function ReportDocument({ report }: { report: InsightReport }) {
         <Text style={styles.title}>{report.productName}</Text>
         <Text style={styles.subtitle}>
           {report.reviewCount} reviews analyzed
-          {report.requestedReviewCount ? ` • ${report.requestedReviewCount} requested` : ""} • {new Date(report.generatedAt).toLocaleDateString()}
+          {report.requestedReviewCount ? " - best-effort retrieval" : ""} - {new Date(report.generatedAt).toLocaleDateString()}
         </Text>
         {report.requestedReviewCount && report.reviewCount < report.requestedReviewCount ? (
           <Text>
-            Only {report.reviewCount} public reviews were available. This report uses every review we could retrieve.
+            SellerSignal uses every public review the data source allows us to retrieve during the run. Package names are insight levels, not guaranteed review counts.
           </Text>
         ) : null}
         <Text>{report.executiveSummary}</Text>

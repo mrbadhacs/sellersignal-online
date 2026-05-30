@@ -7,16 +7,15 @@ import { InsightReport, ReviewTier, REVIEW_TIERS } from "@/lib/types";
 
 const plans = [
   { key: "starter", name: "Solo", price: "$29/mo", credits: "3 credits", detail: "Best for weekly competitor checks." },
-  { key: "growth", name: "Operator", price: "$79/mo", credits: "10 credits", detail: "For sellers testing listings and angles." },
-  { key: "pro", name: "Brand", price: "$149/mo", credits: "24 credits", detail: "For teams watching multiple competitors." },
-  { key: "brand", name: "Agency", price: "$299/mo", credits: "60 credits", detail: "For agencies and portfolio operators." },
+  { key: "growth", name: "Brand", price: "$99/mo", credits: "12 credits", detail: "For sellers testing products, listings, and angles." },
+  { key: "pro", name: "Agency", price: "$249/mo", credits: "35 credits", detail: "For agencies and portfolio operators." },
 ];
 
 const oneTimeReports = [
-  { key: "starter", label: "100 reviews", price: "$19", credits: "1 credit", detail: "A quick read on one competing product." },
-  { key: "growth", label: "250 reviews", price: "$39", credits: "2 credits", detail: "Best for validating patterns before launch." },
-  { key: "pro", label: "500 reviews", price: "$79", credits: "4 credits", detail: "A deeper report for serious product decisions." },
-  { key: "brand", label: "1,000 reviews", price: "$129", credits: "7 credits", detail: "Maximum signal for mature competitive research." },
+  { key: "starter", label: "Quick Signal", price: "$19", credits: "1 credit", detail: "A fast AI summary from all retrievable public reviews." },
+  { key: "growth", label: "Deep Signal Attempt", price: "$49", credits: "2 credits", detail: "Adds deeper scraper passes when the data source allows it." },
+  { key: "pro", label: "Listing Gap Report", price: "$79", credits: "3 credits", detail: "Turns public reviews into listing, copy, and product gap ideas." },
+  { key: "brand", label: "Competitor Credit Pack", price: "$99", credits: "5 credits", detail: "Use credits across multiple competitor products as you research." },
 ];
 
 const reportExpectations = [
@@ -92,7 +91,7 @@ export function ReportBuilder() {
   const costNote = useMemo(() => `${selected.credits} credit${selected.credits > 1 ? "s" : ""} • ${selected.label}`, [selected]);
   const reportShortfall =
     report?.requestedReviewCount && report.reviewCount < report.requestedReviewCount
-      ? `Only ${report.reviewCount} public review${report.reviewCount === 1 ? "" : "s"} were available. You requested ${report.requestedReviewCount}, so this report uses every review we could retrieve.`
+      ? `SellerSignal retrieved ${report.reviewCount} public review${report.reviewCount === 1 ? "" : "s"} for this run. The package sets a retrieval ceiling, not a guaranteed review count, so this report uses every review the data source allowed us to access.`
       : "";
 
   useEffect(() => {
@@ -281,7 +280,7 @@ export function ReportBuilder() {
               Reverse engineer competitor reviews before you build, source, or launch.
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-white/76">
-              Paste a competitor product URL, scrape recent customer reviews, and get a crisp one-page report with complaints,
+              Paste a competitor product URL and get a crisp one-page report from all retrievable public reviews: complaints,
               compliments, phrases, product gaps, positioning, and copy angles.
             </p>
           </div>
@@ -385,10 +384,11 @@ export function ReportBuilder() {
         <div className="grid gap-8 lg:grid-cols-[.9fr_1.1fr]">
           <div>
             <p className="text-sm uppercase tracking-[0.25em] text-neutral-500">Choose how to buy</p>
-            <h2 className="mt-4 text-4xl font-semibold tracking-normal">One report when you need it. Credits when you are watching the market.</h2>
+            <h2 className="mt-4 text-4xl font-semibold tracking-normal">Buy insight, not a promised scrape count.</h2>
             <p className="mt-5 max-w-xl text-base leading-7 text-neutral-600">
-              Buy a single report for a specific competitor, or subscribe for monthly credits that never expire. Canceling a
-              subscription stops new monthly credits, but your unused credits stay in your account.
+              Amazon may limit how many public reviews any scraper can retrieve in a run. SellerSignal analyzes every review it can
+              access and clearly shows the actual count in your report. Canceling a subscription stops new monthly credits, but your
+              unused credits stay in your account.
             </p>
           </div>
 
@@ -426,7 +426,7 @@ export function ReportBuilder() {
             </div>
             <span className="rounded-full bg-neutral-950 px-3 py-1 text-xs font-medium text-white">Credits never expire</span>
           </div>
-          <div className="mt-5 grid gap-5 lg:grid-cols-4">
+          <div className="mt-5 grid gap-5 lg:grid-cols-3">
             {plans.map((plan) => (
               <button
                 key={plan.name}
@@ -474,7 +474,7 @@ export function ReportBuilder() {
                   <FileText className="mb-4 size-5" />
                   <span className="block text-base font-semibold">{savedReport.productName}</span>
                   <span className="mt-3 block text-sm text-neutral-500">
-                    {savedReport.reviewCount} reviews • {new Date(savedReport.createdAt).toLocaleDateString()}
+                    {savedReport.reviewCount} retrieved • {new Date(savedReport.createdAt).toLocaleDateString()}
                   </span>
                   <span className="mt-4 block text-xs font-semibold text-neutral-950">Open report</span>
                 </button>
@@ -561,7 +561,7 @@ export function ReportBuilder() {
               <p className="text-4xl font-semibold">{report.ratingBreakdown.average.toFixed(1)}</p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs font-medium text-neutral-600">
                 <span className="rounded-full bg-white px-3 py-1">{report.reviewCount} analyzed</span>
-                {report.requestedReviewCount && <span className="rounded-full bg-white px-3 py-1">{report.requestedReviewCount} requested</span>}
+                {report.requestedReviewCount && <span className="rounded-full bg-white px-3 py-1">Best-effort retrieval</span>}
               </div>
               <p className="mt-6 text-base leading-7 text-neutral-700">{report.executiveSummary}</p>
             </div>

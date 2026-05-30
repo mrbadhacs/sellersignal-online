@@ -48,12 +48,12 @@ export async function POST(request: Request) {
   const creditsByPlan = {
     "payment:starter": 1,
     "payment:growth": 2,
-    "payment:pro": 4,
-    "payment:brand": 7,
+    "payment:pro": 3,
+    "payment:brand": 5,
     "subscription:starter": 3,
-    "subscription:growth": 10,
-    "subscription:pro": 24,
-    "subscription:brand": 60,
+    "subscription:growth": 12,
+    "subscription:pro": 35,
+    "subscription:brand": 35,
   } satisfies Record<CheckoutKey, number>;
 
   const session = await stripe.checkout.sessions.create({

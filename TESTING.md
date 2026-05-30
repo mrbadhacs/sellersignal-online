@@ -18,7 +18,7 @@ select id, 10, 'manual founder test credit'
 from profile;
 ```
 
-## 2. Required Replit Secrets
+## 2. Required Vercel/Replit Secrets
 
 ```txt
 NEXT_PUBLIC_SUPABASE_URL=
@@ -41,6 +41,18 @@ APIFY_API_TOKEN=
 RESEND_API_KEY=
 REPORT_FROM_EMAIL=reports@sellersignal.online
 NEXT_PUBLIC_APP_URL=
+```
+
+Current Stripe product mapping:
+
+```txt
+STRIPE_PRICE_REPORT_100=Quick Signal, $19, 1 credit
+STRIPE_PRICE_REPORT_250=Deep Signal Attempt, $49, 2 credits
+STRIPE_PRICE_REPORT_500=Listing Gap Report, $79, 3 credits
+STRIPE_PRICE_REPORT_1000=Competitor Credit Pack, $99, 5 credits
+STRIPE_PRICE_SOLO=Solo, $29/mo, 3 credits
+STRIPE_PRICE_GROWTH=Brand, $99/mo, 12 credits
+STRIPE_PRICE_BRAND=Agency, $249/mo, 35 credits
 ```
 
 ## 3. Stripe Webhook

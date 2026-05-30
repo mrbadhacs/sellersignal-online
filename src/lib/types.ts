@@ -38,8 +38,8 @@ export const REVIEW_TIERS: Record<
   ReviewTier,
   { label: string; reviews: number; credits: number; price: number }
 > = {
-  starter: { label: "100 reviews", reviews: 100, credits: 1, price: 19 },
-  growth: { label: "250 reviews", reviews: 250, credits: 2, price: 39 },
-  pro: { label: "500 reviews", reviews: 500, credits: 4, price: 79 },
-  market: { label: "1,000 reviews", reviews: 1000, credits: 7, price: 129 },
+  starter: { label: "Quick Signal", reviews: 100, credits: 1, price: 19 },
+  growth: { label: "Deep Signal Attempt", reviews: 250, credits: 2, price: 49 },
+  pro: { label: "Listing Gap Report", reviews: 250, credits: 3, price: 79 },
+  market: { label: "Market Scan", reviews: 500, credits: 5, price: 99 },
 };

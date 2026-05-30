@@ -40,11 +40,11 @@ export async function emailReport(to: string | undefined, report: InsightReport)
         <p style="letter-spacing:0.24em;text-transform:uppercase;color:#777;font-size:12px;margin:0 0 8px;">SellerSignal report</p>
         <h1 style="font-size:28px;line-height:1.15;margin:0 0 14px;">${escapeHtml(report.productName)}</h1>
         <p style="color:#555;margin:0 0 18px;">
-          ${escapeHtml(report.reviewCount)} reviews analyzed${report.requestedReviewCount ? ` out of ${escapeHtml(report.requestedReviewCount)} requested` : ""}.
+          ${escapeHtml(report.reviewCount)} reviews analyzed${report.requestedReviewCount ? " from best-effort public retrieval" : ""}.
         </p>
         ${
           report.requestedReviewCount && report.reviewCount < report.requestedReviewCount
-            ? `<p style="background:#f5f5f5;border-radius:8px;padding:12px 14px;color:#555;">Only ${escapeHtml(report.reviewCount)} public reviews were retrievable for this product during this run. The AI summary uses every review the scraper could access.</p>`
+            ? `<p style="background:#f5f5f5;border-radius:8px;padding:12px 14px;color:#555;">SellerSignal uses every public review the data source allows us to retrieve during the run. Package names are insight levels, not guaranteed review counts.</p>`
             : ""
         }
         <h2 style="font-size:18px;margin:28px 0 10px;">Executive summary</h2>
