@@ -47,13 +47,13 @@ export async function POST(request: Request) {
   const origin = request.headers.get("origin") || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const creditsByPlan = {
     "payment:starter": 1,
-    "payment:growth": 2,
-    "payment:pro": 3,
-    "payment:brand": 5,
-    "subscription:starter": 3,
-    "subscription:growth": 12,
-    "subscription:pro": 35,
-    "subscription:brand": 35,
+    "payment:growth": 3,
+    "payment:pro": 7,
+    "payment:brand": 7,
+    "subscription:starter": 5,
+    "subscription:growth": 15,
+    "subscription:pro": 15,
+    "subscription:brand": 15,
   } satisfies Record<CheckoutKey, number>;
 
   const session = await stripe.checkout.sessions.create({

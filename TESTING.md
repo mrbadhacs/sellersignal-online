@@ -47,12 +47,10 @@ Current Stripe product mapping:
 
 ```txt
 STRIPE_PRICE_REPORT_100=Quick Signal, $19, 1 credit
-STRIPE_PRICE_REPORT_250=Deep Signal Attempt, $49, 2 credits
-STRIPE_PRICE_REPORT_500=Listing Gap Report, $79, 3 credits
-STRIPE_PRICE_REPORT_1000=Competitor Credit Pack, $99, 5 credits
-STRIPE_PRICE_SOLO=Solo, $29/mo, 3 credits
-STRIPE_PRICE_GROWTH=Brand, $99/mo, 12 credits
-STRIPE_PRICE_BRAND=Agency, $249/mo, 35 credits
+STRIPE_PRICE_REPORT_250=Research Pack, $49, 3 credits
+STRIPE_PRICE_REPORT_500=Market Pack, $99, 7 credits
+STRIPE_PRICE_SOLO=Solo, $49/mo, 5 credits
+STRIPE_PRICE_GROWTH=Brand, $149/mo, 15 credits
 ```
 
 ## 3. Stripe Webhook

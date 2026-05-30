@@ -5,75 +5,67 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createDemoReport } from "@/lib/mock-report";
 import { InsightReport, ReviewTier, REVIEW_TIERS } from "@/lib/types";
 
+const activeReportTiers = ["starter", "growth", "pro"] as const satisfies readonly ReviewTier[];
+
 const plans = [
-  { key: "starter", name: "Solo", price: "$29/mo", credits: "3 credits", detail: "Best for weekly competitor checks." },
-  { key: "growth", name: "Brand", price: "$99/mo", credits: "12 credits", detail: "For sellers testing products, listings, and angles." },
-  { key: "pro", name: "Agency", price: "$249/mo", credits: "35 credits", detail: "For agencies and portfolio operators." },
+  { key: "starter", name: "Solo", price: "$49/mo", credits: "5 credits", detail: "Best for weekly competitor checks." },
+  { key: "growth", name: "Brand", price: "$149/mo", credits: "15 credits", detail: "For sellers testing products, listings, and angles." },
 ];
 
 const oneTimeReports = [
-  { key: "starter", label: "Quick Signal", price: "$19", credits: "1 credit", detail: "A fast AI summary from all retrievable public reviews." },
-  { key: "growth", label: "Deep Signal Attempt", price: "$49", credits: "2 credits", detail: "Adds deeper scraper passes when the data source allows it." },
-  { key: "pro", label: "Listing Gap Report", price: "$79", credits: "3 credits", detail: "Turns public reviews into listing, copy, and product gap ideas." },
-  { key: "brand", label: "Competitor Credit Pack", price: "$99", credits: "5 credits", detail: "Use credits across multiple competitor products as you research." },
+  { key: "starter", label: "Quick Signal", price: "$19", credits: "1 credit", detail: "One best-effort public review intelligence report." },
+  { key: "growth", label: "Research Pack", price: "$49", credits: "3 credits", detail: "Three credits for checking a few competitor products." },
+  { key: "pro", label: "Market Pack", price: "$99", credits: "7 credits", detail: "Seven credits for broader competitor and niche research." },
 ];
 
 const oneTimeCompare = [
   {
     feature: "Best for",
     starter: "Fast competitor read",
-    growth: "Deeper public retrieval attempt",
-    pro: "Listing and product decisions",
-    brand: "Multiple competitor checks",
+    growth: "A few product checks",
+    pro: "Broader market research",
   },
   {
     feature: "Public review retrieval",
-    starter: "Standard",
-    growth: "Expanded attempt",
-    pro: "Expanded attempt",
-    brand: "Credit-based",
+    starter: "Best effort",
+    growth: "Best effort",
+    pro: "Best effort",
   },
   {
     feature: "AI sentiment summary",
     starter: "Included",
     growth: "Included",
     pro: "Included",
-    brand: "Included",
   },
   {
     feature: "Complaints and compliments",
     starter: "Included",
     growth: "Included",
     pro: "Included",
-    brand: "Included",
   },
   {
     feature: "Common phrases",
     starter: "Included",
     growth: "Included",
     pro: "Included",
-    brand: "Included",
   },
   {
     feature: "Product improvement ideas",
     starter: "Included",
     growth: "Included",
     pro: "Expanded",
-    brand: "Included",
   },
   {
     feature: "Positioning and copy ideas",
     starter: "Included",
     growth: "Included",
     pro: "Expanded",
-    brand: "Included",
   },
   {
     feature: "PDF and email report",
     starter: "Included",
     growth: "Included",
     pro: "Included",
-    brand: "Included",
   },
 ];
 
@@ -82,43 +74,41 @@ const subscriptionCompare = [
     feature: "Best for",
     starter: "Solo sellers",
     growth: "Growing brands",
-    pro: "Agencies and portfolios",
   },
   {
     feature: "Monthly credits",
-    starter: "3",
-    growth: "12",
-    pro: "35",
+    starter: "5",
+    growth: "15",
+  },
+  {
+    feature: "Effective cost per credit",
+    starter: "$9.80",
+    growth: "$9.93",
   },
   {
     feature: "Unused credits",
     starter: "Never expire",
     growth: "Never expire",
-    pro: "Never expire",
   },
   {
     feature: "One-time report access",
     starter: "Included",
     growth: "Included",
-    pro: "Included",
   },
   {
     feature: "Report history",
     starter: "Included",
     growth: "Included",
-    pro: "Included",
   },
   {
     feature: "PDF and email delivery",
     starter: "Included",
     growth: "Included",
-    pro: "Included",
   },
   {
     feature: "Research cadence",
     starter: "A few products/month",
     growth: "Weekly competitor checks",
-    pro: "Frequent client research",
   },
 ];
 
@@ -398,8 +388,8 @@ export function ReportBuilder() {
               className="mt-2 h-12 w-full rounded-md border border-neutral-200 px-3 outline-none focus:border-neutral-950"
               required
             />
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              {(Object.keys(REVIEW_TIERS) as ReviewTier[]).map((key) => (
+            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+              {activeReportTiers.map((key) => (
                 <button
                   type="button"
                   key={key}
@@ -504,7 +494,7 @@ export function ReportBuilder() {
               </div>
               <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-600">Pay once</span>
             </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="mt-4 grid gap-3 lg:grid-cols-3">
               {oneTimeReports.map((reportOption) => (
                 <button
                   key={reportOption.label}
@@ -530,7 +520,7 @@ export function ReportBuilder() {
             </div>
             <span className="rounded-full bg-neutral-950 px-3 py-1 text-xs font-medium text-white">Credits never expire</span>
           </div>
-          <div className="mt-5 grid gap-5 lg:grid-cols-3">
+          <div className="mt-5 grid gap-5 lg:grid-cols-2">
             {plans.map((plan) => (
               <button
                 key={plan.name}
@@ -553,9 +543,8 @@ export function ReportBuilder() {
             description="Each package analyzes every public review the data source can retrieve during the run."
             columns={[
               { key: "starter", label: "Quick Signal" },
-              { key: "growth", label: "Deep Signal" },
-              { key: "pro", label: "Listing Gap" },
-              { key: "brand", label: "Credit Pack" },
+              { key: "growth", label: "Research Pack" },
+              { key: "pro", label: "Market Pack" },
             ]}
             rows={oneTimeCompare}
           />
@@ -565,7 +554,6 @@ export function ReportBuilder() {
             columns={[
               { key: "starter", label: "Solo" },
               { key: "growth", label: "Brand" },
-              { key: "pro", label: "Agency" },
             ]}
             rows={subscriptionCompare}
           />
