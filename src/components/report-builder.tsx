@@ -18,6 +18,110 @@ const oneTimeReports = [
   { key: "brand", label: "Competitor Credit Pack", price: "$99", credits: "5 credits", detail: "Use credits across multiple competitor products as you research." },
 ];
 
+const oneTimeCompare = [
+  {
+    feature: "Best for",
+    starter: "Fast competitor read",
+    growth: "Deeper public retrieval attempt",
+    pro: "Listing and product decisions",
+    brand: "Multiple competitor checks",
+  },
+  {
+    feature: "Public review retrieval",
+    starter: "Standard",
+    growth: "Expanded attempt",
+    pro: "Expanded attempt",
+    brand: "Credit-based",
+  },
+  {
+    feature: "AI sentiment summary",
+    starter: "Included",
+    growth: "Included",
+    pro: "Included",
+    brand: "Included",
+  },
+  {
+    feature: "Complaints and compliments",
+    starter: "Included",
+    growth: "Included",
+    pro: "Included",
+    brand: "Included",
+  },
+  {
+    feature: "Common phrases",
+    starter: "Included",
+    growth: "Included",
+    pro: "Included",
+    brand: "Included",
+  },
+  {
+    feature: "Product improvement ideas",
+    starter: "Included",
+    growth: "Included",
+    pro: "Expanded",
+    brand: "Included",
+  },
+  {
+    feature: "Positioning and copy ideas",
+    starter: "Included",
+    growth: "Included",
+    pro: "Expanded",
+    brand: "Included",
+  },
+  {
+    feature: "PDF and email report",
+    starter: "Included",
+    growth: "Included",
+    pro: "Included",
+    brand: "Included",
+  },
+];
+
+const subscriptionCompare = [
+  {
+    feature: "Best for",
+    starter: "Solo sellers",
+    growth: "Growing brands",
+    pro: "Agencies and portfolios",
+  },
+  {
+    feature: "Monthly credits",
+    starter: "3",
+    growth: "12",
+    pro: "35",
+  },
+  {
+    feature: "Unused credits",
+    starter: "Never expire",
+    growth: "Never expire",
+    pro: "Never expire",
+  },
+  {
+    feature: "One-time report access",
+    starter: "Included",
+    growth: "Included",
+    pro: "Included",
+  },
+  {
+    feature: "Report history",
+    starter: "Included",
+    growth: "Included",
+    pro: "Included",
+  },
+  {
+    feature: "PDF and email delivery",
+    starter: "Included",
+    growth: "Included",
+    pro: "Included",
+  },
+  {
+    feature: "Research cadence",
+    starter: "A few products/month",
+    growth: "Weekly competitor checks",
+    pro: "Frequent client research",
+  },
+];
+
 const reportExpectations = [
   {
     title: "AI-summarized customer sentiment",
@@ -443,6 +547,30 @@ export function ReportBuilder() {
           </div>
         </div>
 
+        <div className="mt-8 grid gap-8 xl:grid-cols-2">
+          <ComparisonTable
+            title="Compare one-time packages"
+            description="Each package analyzes every public review the data source can retrieve during the run."
+            columns={[
+              { key: "starter", label: "Quick Signal" },
+              { key: "growth", label: "Deep Signal" },
+              { key: "pro", label: "Listing Gap" },
+              { key: "brand", label: "Credit Pack" },
+            ]}
+            rows={oneTimeCompare}
+          />
+          <ComparisonTable
+            title="Compare monthly plans"
+            description="Monthly credits never expire, even if the subscription is canceled later."
+            columns={[
+              { key: "starter", label: "Solo" },
+              { key: "growth", label: "Brand" },
+              { key: "pro", label: "Agency" },
+            ]}
+            rows={subscriptionCompare}
+          />
+        </div>
+
         <p className="mt-6 rounded-lg border border-neutral-200 bg-white p-4 text-sm leading-6 text-neutral-500">{complianceCopy}</p>
       </section>
 
@@ -587,6 +715,53 @@ function InsightList({ title, items }: { title: string; items: string[] }) {
       <ul className="mt-4 space-y-3 text-sm leading-6 text-neutral-600">
         {items.map((item) => <li key={item}>{item}</li>)}
       </ul>
+    </div>
+  );
+}
+
+function ComparisonTable({
+  title,
+  description,
+  columns,
+  rows,
+}: {
+  title: string;
+  description: string;
+  columns: { key: string; label: string }[];
+  rows: Record<string, string>[];
+}) {
+  return (
+    <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+      <div className="border-b border-neutral-200 p-5">
+        <h3 className="text-xl font-semibold">{title}</h3>
+        <p className="mt-2 text-sm leading-6 text-neutral-500">{description}</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[620px] border-collapse text-left text-sm">
+          <thead>
+            <tr className="border-b border-neutral-200 bg-neutral-50">
+              <th className="w-44 px-4 py-3 font-semibold text-neutral-600">Feature</th>
+              {columns.map((column) => (
+                <th key={column.key} className="px-4 py-3 font-semibold text-neutral-950">
+                  {column.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.feature} className="border-b border-neutral-100 last:border-0">
+                <td className="px-4 py-3 font-medium text-neutral-950">{row.feature}</td>
+                {columns.map((column) => (
+                  <td key={column.key} className="px-4 py-3 leading-6 text-neutral-600">
+                    {row[column.key]}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
