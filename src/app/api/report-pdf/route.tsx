@@ -9,6 +9,15 @@ const styles = StyleSheet.create({
   section: { marginTop: 14 },
   heading: { fontSize: 13, marginBottom: 6 },
   item: { marginBottom: 4, lineHeight: 1.35 },
+  watermark: {
+    position: "absolute",
+    top: 330,
+    left: 78,
+    color: "#d4d4d4",
+    fontSize: 46,
+    opacity: 0.28,
+    transform: "rotate(-28deg)",
+  },
 });
 
 function ReportDocument({ report }: { report: InsightReport }) {
@@ -17,6 +26,7 @@ function ReportDocument({ report }: { report: InsightReport }) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
+        {report.tier === "free" ? <Text fixed style={styles.watermark}>FREE TEASER</Text> : null}
         <Text style={styles.title}>{report.productName}</Text>
         <Text style={styles.subtitle}>
           {report.reviewCount} reviews analyzed

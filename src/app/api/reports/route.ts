@@ -10,7 +10,7 @@ import { REVIEW_TIERS } from "@/lib/types";
 const requestSchema = z.object({
   productUrl: z.string().min(10),
   email: z.string().email().optional().or(z.literal("")),
-  tier: z.enum(["starter", "growth", "pro", "market"]),
+  tier: z.enum(["free", "starter", "growth", "pro", "market"]),
 });
 
 export async function POST(request: Request) {
@@ -25,9 +25,35 @@ export async function POST(request: Request) {
   const creditCost = REVIEW_TIERS[tier].credits;
 
   try {
-    const profile = email && hasSupabaseAdmin() ? await getOrCreateProfile(email) : null;
+    if (!email) {
+      return NextResponse.json({ error: "Enter your email so we can save the report and manage credits." }, { status: 400 });
+    }
 
-    if (profile) {
+    if (!hasSupabaseAdmin()) {
+      return NextResponse.json({ error: "Supabase is not configured, so reports and credits cannot be managed." }, { status: 500 });
+    }
+
+    const profile = await getOrCreateProfile(email);
+
+    if (tier === "free") {
+      const supabase = getSupabaseAdmin();
+      const { count, error: freeCountError } = await supabase
+        .from("reports")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", profile.id)
+        .contains("report_json", { tier: "free" });
+
+      if (freeCountError) throw freeCountError;
+
+      if ((count || 0) >= 1) {
+        return NextResponse.json(
+          { error: "This email has already used its free teaser report. Buy credits or subscribe to generate more reports." },
+          { status: 402 },
+        );
+      }
+    }
+
+    if (creditCost > 0) {
       const balance = await getCreditBalance(profile.id);
       if (balance < creditCost) {
         return NextResponse.json(
@@ -39,15 +65,15 @@ export async function POST(request: Request) {
 
     if (!process.env.APIFY_API_TOKEN || !process.env.OPENAI_API_KEY) {
       const report = createDemoReport(productUrl, tier);
-      if (profile) {
-        const supabase = getSupabaseAdmin();
-        await supabase.from("reports").insert({
-          user_id: profile.id,
-          product_url: productUrl,
-          product_name: report.productName,
-          review_count: report.reviewCount,
-          report_json: report,
-        });
+      const supabase = getSupabaseAdmin();
+      await supabase.from("reports").insert({
+        user_id: profile.id,
+        product_url: productUrl,
+        product_name: report.productName,
+        review_count: report.reviewCount,
+        report_json: report,
+      });
+      if (creditCost > 0) {
         await supabase.from("credit_ledger").insert({
           user_id: profile.id,
           amount: -creditCost,
@@ -72,15 +98,15 @@ export async function POST(request: Request) {
       reviews: scrape.reviews,
     });
 
-    if (profile) {
-      const supabase = getSupabaseAdmin();
-      await supabase.from("reports").insert({
-        user_id: profile.id,
-        product_url: productUrl,
-        product_name: report.productName,
-        review_count: report.reviewCount,
-        report_json: report,
-      });
+    const supabase = getSupabaseAdmin();
+    await supabase.from("reports").insert({
+      user_id: profile.id,
+      product_url: productUrl,
+      product_name: report.productName,
+      review_count: report.reviewCount,
+      report_json: report,
+    });
+    if (creditCost > 0) {
       await supabase.from("credit_ledger").insert({
         user_id: profile.id,
         amount: -creditCost,

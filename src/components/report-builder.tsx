@@ -5,67 +5,58 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createDemoReport } from "@/lib/mock-report";
 import { InsightReport, ReviewTier, REVIEW_TIERS } from "@/lib/types";
 
-const activeReportTiers = ["starter", "growth", "pro"] as const satisfies readonly ReviewTier[];
+const activeReportTiers = ["free", "starter"] as const satisfies readonly ReviewTier[];
 
 const plans = [
-  { key: "starter", name: "Solo", price: "$49/mo", credits: "5 credits", detail: "Best for weekly competitor checks." },
-  { key: "growth", name: "Brand", price: "$149/mo", credits: "15 credits", detail: "For sellers testing products, listings, and angles." },
+  { key: "starter", name: "Solo", price: "$49/mo", credits: "10 credits", detail: "Best for weekly competitor checks." },
+  { key: "growth", name: "Brand", price: "$149/mo", credits: "40 credits", detail: "For sellers testing products, listings, and angles." },
 ];
 
 const oneTimeReports = [
-  { key: "starter", label: "Quick Signal", price: "$19", credits: "1 credit", detail: "One best-effort public review intelligence report." },
-  { key: "growth", label: "Research Pack", price: "$49", credits: "3 credits", detail: "Three credits for checking a few competitor products." },
-  { key: "pro", label: "Market Pack", price: "$99", credits: "7 credits", detail: "Seven credits for broader competitor and niche research." },
+  { key: "starter", label: "Quick Signal", price: "$29", credits: "2 credits", detail: "Two full reports using best-effort public review retrieval." },
+  { key: "growth", label: "Research Pack", price: "$79", credits: "6 credits", detail: "Six full reports for checking several competitor products." },
 ];
 
 const oneTimeCompare = [
   {
     feature: "Best for",
-    starter: "Fast competitor read",
+    starter: "Trying the workflow",
     growth: "A few product checks",
-    pro: "Broader market research",
   },
   {
-    feature: "Public review retrieval",
-    starter: "Best effort",
-    growth: "Best effort",
-    pro: "Best effort",
+    feature: "Included credits",
+    starter: "2",
+    growth: "6",
+  },
+  {
+    feature: "Best-effort public review retrieval",
+    starter: "Included",
+    growth: "Included",
   },
   {
     feature: "AI sentiment summary",
     starter: "Included",
     growth: "Included",
-    pro: "Included",
   },
   {
-    feature: "Complaints and compliments",
+    feature: "Complaints, compliments, and phrases",
     starter: "Included",
     growth: "Included",
-    pro: "Included",
-  },
-  {
-    feature: "Common phrases",
-    starter: "Included",
-    growth: "Included",
-    pro: "Included",
   },
   {
     feature: "Product improvement ideas",
     starter: "Included",
     growth: "Included",
-    pro: "Expanded",
   },
   {
     feature: "Positioning and copy ideas",
     starter: "Included",
     growth: "Included",
-    pro: "Expanded",
   },
   {
-    feature: "PDF and email report",
+    feature: "PDF and email delivery",
     starter: "Included",
     growth: "Included",
-    pro: "Included",
   },
 ];
 
@@ -77,13 +68,13 @@ const subscriptionCompare = [
   },
   {
     feature: "Monthly credits",
-    starter: "5",
-    growth: "15",
+    starter: "10",
+    growth: "40",
   },
   {
     feature: "Effective cost per credit",
-    starter: "$9.80",
-    growth: "$9.93",
+    starter: "$4.90",
+    growth: "$3.73",
   },
   {
     feature: "Unused credits",
@@ -107,8 +98,8 @@ const subscriptionCompare = [
   },
   {
     feature: "Research cadence",
-    starter: "A few products/month",
-    growth: "Weekly competitor checks",
+    starter: "Weekly competitor checks",
+    growth: "Frequent product research",
   },
 ];
 
@@ -168,7 +159,7 @@ export function ReportBuilder() {
   const [email, setEmail] = useState(() =>
     typeof window === "undefined" ? "" : window.localStorage.getItem("sellersignal_email") || "",
   );
-  const [tier, setTier] = useState<ReviewTier>("growth");
+  const [tier, setTier] = useState<ReviewTier>("free");
   const [report, setReport] = useState<InsightReport | null>(null);
   const [reportHistory, setReportHistory] = useState<SavedReport[]>([]);
   const [error, setError] = useState("");
@@ -182,7 +173,10 @@ export function ReportBuilder() {
   const reportRef = useRef<HTMLElement | null>(null);
 
   const selected = REVIEW_TIERS[tier];
-  const costNote = useMemo(() => `${selected.credits} credit${selected.credits > 1 ? "s" : ""} • ${selected.label}`, [selected]);
+  const costNote = useMemo(
+    () => (selected.credits === 0 ? "1 free teaser report per email • PDF watermarked" : `${selected.credits} credit • ${selected.label}`),
+    [selected],
+  );
   const reportShortfall =
     report?.requestedReviewCount && report.reviewCount < report.requestedReviewCount
       ? `SellerSignal retrieved ${report.reviewCount} public review${report.reviewCount === 1 ? "" : "s"} for this run. The package sets a retrieval ceiling, not a guaranteed review count, so this report uses every review the data source allowed us to access.`
@@ -388,7 +382,7 @@ export function ReportBuilder() {
               className="mt-2 h-12 w-full rounded-md border border-neutral-200 px-3 outline-none focus:border-neutral-950"
               required
             />
-            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
               {activeReportTiers.map((key) => (
                 <button
                   type="button"
@@ -399,7 +393,9 @@ export function ReportBuilder() {
                   }`}
                 >
                   <span className="block font-semibold">{REVIEW_TIERS[key].label}</span>
-                  <span className="text-xs opacity-70">{REVIEW_TIERS[key].credits} credits</span>
+                  <span className="text-xs opacity-70">
+                    {REVIEW_TIERS[key].credits === 0 ? "1 review teaser" : `${REVIEW_TIERS[key].credits} credit`}
+                  </span>
                 </button>
               ))}
             </div>
@@ -408,6 +404,7 @@ export function ReportBuilder() {
               onChange={(event) => setEmail(event.target.value)}
               placeholder="Email report to you@brand.com"
               className="mt-4 h-12 w-full rounded-md border border-neutral-200 px-3 outline-none focus:border-neutral-950"
+              required
             />
             <div className="mt-3 flex items-center justify-between gap-3 rounded-md bg-neutral-100 p-3 text-xs text-neutral-600">
               <span>
@@ -484,17 +481,25 @@ export function ReportBuilder() {
               access and clearly shows the actual count in your report. Canceling a subscription stops new monthly credits, but your
               unused credits stay in your account.
             </p>
+            <div className="mt-6 rounded-lg border border-neutral-200 bg-white p-5">
+              <span className="text-sm font-semibold">Free Teaser</span>
+              <span className="mt-3 block text-3xl font-semibold">$0</span>
+              <span className="mt-1 block text-sm text-neutral-600">1 free report per email</span>
+              <p className="mt-4 text-sm leading-6 text-neutral-500">
+                Pulls one retrievable public review so you can see the workflow. The downloadable PDF is watermarked.
+              </p>
+            </div>
           </div>
 
           <div className="rounded-lg border border-neutral-200 bg-white p-5">
             <div className="flex items-center justify-between gap-4 border-b border-neutral-200 pb-4">
               <div>
-                <h3 className="text-xl font-semibold">One-time reports</h3>
-                <p className="mt-1 text-sm text-neutral-500">No account required for a single report checkout.</p>
+                <h3 className="text-xl font-semibold">One-time credit packs</h3>
+                <p className="mt-1 text-sm text-neutral-500">Buy credits once. Credits never expire.</p>
               </div>
               <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-600">Pay once</span>
             </div>
-            <div className="mt-4 grid gap-3 lg:grid-cols-3">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {oneTimeReports.map((reportOption) => (
                 <button
                   key={reportOption.label}
@@ -544,7 +549,6 @@ export function ReportBuilder() {
             columns={[
               { key: "starter", label: "Quick Signal" },
               { key: "growth", label: "Research Pack" },
-              { key: "pro", label: "Market Pack" },
             ]}
             rows={oneTimeCompare}
           />

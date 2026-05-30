@@ -46,11 +46,10 @@ NEXT_PUBLIC_APP_URL=
 Current Stripe product mapping:
 
 ```txt
-STRIPE_PRICE_REPORT_100=Quick Signal, $19, 1 credit
-STRIPE_PRICE_REPORT_250=Research Pack, $49, 3 credits
-STRIPE_PRICE_REPORT_500=Market Pack, $99, 7 credits
-STRIPE_PRICE_SOLO=Solo, $49/mo, 5 credits
-STRIPE_PRICE_GROWTH=Brand, $149/mo, 15 credits
+STRIPE_PRICE_REPORT_100=Quick Signal, $29, 2 credits
+STRIPE_PRICE_REPORT_250=Research Pack, $79, 6 credits
+STRIPE_PRICE_SOLO=Solo, $49/mo, 10 credits
+STRIPE_PRICE_GROWTH=Brand, $149/mo, 40 credits
 ```
 
 ## 3. Stripe Webhook

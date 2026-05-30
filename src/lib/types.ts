@@ -1,4 +1,4 @@
-export type ReviewTier = "starter" | "growth" | "pro" | "market";
+export type ReviewTier = "free" | "starter" | "growth" | "pro" | "market";
 
 export type ReviewRecord = {
   rating: number;
@@ -38,8 +38,9 @@ export const REVIEW_TIERS: Record<
   ReviewTier,
   { label: string; reviews: number; credits: number; price: number }
 > = {
-  starter: { label: "Quick Signal", reviews: 100, credits: 1, price: 19 },
-  growth: { label: "Research Pack", reviews: 250, credits: 3, price: 49 },
-  pro: { label: "Market Pack", reviews: 500, credits: 7, price: 99 },
-  market: { label: "Market Pack", reviews: 500, credits: 7, price: 99 },
+  free: { label: "Free Teaser", reviews: 1, credits: 0, price: 0 },
+  starter: { label: "Full Signal Report", reviews: 100, credits: 1, price: 0 },
+  growth: { label: "Full Signal Report", reviews: 100, credits: 1, price: 0 },
+  pro: { label: "Full Signal Report", reviews: 100, credits: 1, price: 0 },
+  market: { label: "Full Signal Report", reviews: 100, credits: 1, price: 0 },
 };
