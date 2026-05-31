@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { scrapeAmazonReviews } from "@/lib/apify";
+import { getAuthenticatedProfile } from "@/lib/auth";
 import { emailReport } from "@/lib/email";
 import { createDemoReport } from "@/lib/mock-report";
 import { analyzeReviews } from "@/lib/openai-report";
-import { getCreditBalance, getOrCreateProfile, getSupabaseAdmin, hasSupabaseAdmin } from "@/lib/supabase-admin";
+import { getCreditBalance, getSupabaseAdmin, hasSupabaseAdmin } from "@/lib/supabase-admin";
 import { REVIEW_TIERS } from "@/lib/types";
 
 const requestSchema = z.object({
@@ -13,6 +14,12 @@ const requestSchema = z.object({
   tier: z.enum(["free", "starter", "growth", "pro", "market"]),
 });
 
+function statusForError(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+  if (message.includes("Sign in") || message.includes("session") || message.includes("only access")) return 401;
+  return 500;
+}
+
 export async function POST(request: Request) {
   const parsed = requestSchema.safeParse(await request.json());
 
@@ -20,20 +27,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Check the URL, email, and report size." }, { status: 400 });
   }
 
-  const { productUrl, email, tier } = parsed.data;
+  const { productUrl, email: requestedEmail, tier } = parsed.data;
   const maxReviews = REVIEW_TIERS[tier].reviews;
   const creditCost = REVIEW_TIERS[tier].credits;
 
   try {
-    if (!email) {
-      return NextResponse.json({ error: "Enter your email so we can save the report and manage credits." }, { status: 400 });
-    }
-
     if (!hasSupabaseAdmin()) {
       return NextResponse.json({ error: "Supabase is not configured, so reports and credits cannot be managed." }, { status: 500 });
     }
 
-    const profile = await getOrCreateProfile(email);
+    const { profile, email } = await getAuthenticatedProfile(request, requestedEmail);
 
     if (tier === "free") {
       const supabase = getSupabaseAdmin();
@@ -128,7 +131,7 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "The report could not be generated." },
-      { status: 500 },
+      { status: statusForError(error) },
     );
   }
 }

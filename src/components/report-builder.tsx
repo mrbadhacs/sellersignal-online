@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowDownToLine, ChartNoAxesCombined, FileText, Loader2, Sparkles } from "lucide-react";
+import { createClient } from "@supabase/supabase-js";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createDemoReport } from "@/lib/mock-report";
 import { InsightReport, ReviewTier, REVIEW_TIERS } from "@/lib/types";
@@ -145,6 +146,18 @@ const sellerTips = [
   "Tip: competitor compliments can show which benefits your listing needs to match or beat.",
 ];
 
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function getBrowserSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !anonKey) return null;
+  return createClient(url, anonKey);
+}
+
 type SavedReport = {
   id: string;
   productName: string;
@@ -167,12 +180,19 @@ export function ReportBuilder() {
   const [creditMessage, setCreditMessage] = useState("");
   const [creditStatus, setCreditStatus] = useState<"idle" | "checking" | "success" | "error">("idle");
   const [creditFlash, setCreditFlash] = useState(false);
+  const [accessToken, setAccessToken] = useState("");
+  const [authenticatedEmail, setAuthenticatedEmail] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [authStatus, setAuthStatus] = useState<"idle" | "sending" | "code-sent" | "verifying" | "signed-in" | "error">("idle");
+  const [authMessage, setAuthMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("");
   const [loadingStep, setLoadingStep] = useState(0);
   const reportRef = useRef<HTMLElement | null>(null);
 
   const selected = REVIEW_TIERS[tier];
+  const normalizedEmail = normalizeEmail(email);
+  const isSignedIn = Boolean(accessToken && authenticatedEmail && authenticatedEmail === normalizedEmail);
   const costNote = useMemo(
     () => (selected.credits === 0 ? "1 free teaser report per email • PDF watermarked" : `${selected.credits} credit • ${selected.label}`),
     [selected],
@@ -189,10 +209,42 @@ export function ReportBuilder() {
   }, [report?.id, report]);
 
   useEffect(() => {
-    if (email) {
-      void refreshCredits(email);
+    const supabase = getBrowserSupabase();
+    if (!supabase) {
+      return;
     }
-    // Run once on load to restore the remembered email account.
+
+    void supabase.auth.getSession().then(({ data }) => {
+      const session = data.session;
+      const sessionEmail = session?.user.email ? normalizeEmail(session.user.email) : "";
+      if (session?.access_token && sessionEmail) {
+        setAccessToken(session.access_token);
+        setAuthenticatedEmail(sessionEmail);
+        setEmail(sessionEmail);
+        setAuthStatus("signed-in");
+        setAuthMessage(`Signed in as ${sessionEmail}.`);
+        window.localStorage.setItem("sellersignal_email", sessionEmail);
+        void refreshCredits(sessionEmail, session.access_token);
+      }
+    });
+
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      const sessionEmail = session?.user.email ? normalizeEmail(session.user.email) : "";
+      if (session?.access_token && sessionEmail) {
+        setAccessToken(session.access_token);
+        setAuthenticatedEmail(sessionEmail);
+        setEmail(sessionEmail);
+        setAuthStatus("signed-in");
+        setAuthMessage(`Signed in as ${sessionEmail}.`);
+        window.localStorage.setItem("sellersignal_email", sessionEmail);
+      } else {
+        setAccessToken("");
+        setAuthenticatedEmail("");
+        setAuthStatus("idle");
+      }
+    });
+
+    return () => data.subscription.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -210,6 +262,11 @@ export function ReportBuilder() {
 
   async function submitReport(event: FormEvent) {
     event.preventDefault();
+    if (!isSignedIn) {
+      setError("Sign in with the email code before generating reports or using credits.");
+      return;
+    }
+
     setLoading(true);
     setError("");
     setReport(null);
@@ -222,8 +279,8 @@ export function ReportBuilder() {
     try {
       const response = await fetch("/api/reports", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productUrl, email, tier }),
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ productUrl, email: authenticatedEmail, tier }),
         signal: controller.signal,
       });
 
@@ -235,8 +292,8 @@ export function ReportBuilder() {
       }
 
       setReport(data.report);
-      await refreshCredits(email);
-      await refreshHistory(email);
+      await refreshCredits(authenticatedEmail);
+      await refreshHistory(authenticatedEmail);
     } catch (requestError) {
       setError(
         requestError instanceof DOMException && requestError.name === "AbortError"
@@ -269,22 +326,123 @@ export function ReportBuilder() {
   }
 
   async function checkout(mode: "payment" | "subscription", plan: string) {
+    const checkoutEmail = isSignedIn ? authenticatedEmail : normalizedEmail;
     const response = await fetch("/api/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode, plan, email }),
+      body: JSON.stringify({ mode, plan, email: checkoutEmail }),
     });
     const data = await response.json();
     if (data.url) window.location.href = data.url;
     else setError(data.error || "Stripe is not configured yet.");
   }
 
-  async function refreshCredits(emailToCheck = email) {
-    const normalizedEmail = emailToCheck.trim().toLowerCase();
+  function authHeaders(token = accessToken): Record<string, string> {
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }
+
+  async function sendCode() {
+    const supabase = getBrowserSupabase();
+    const targetEmail = normalizeEmail(email);
+
+    if (!targetEmail) {
+      setAuthStatus("error");
+      setAuthMessage("Enter your email first.");
+      return;
+    }
+
+    if (!supabase) {
+      setAuthStatus("error");
+      setAuthMessage("Supabase auth is not configured in this deployment.");
+      return;
+    }
+
+    setAuthStatus("sending");
+    setAuthMessage("Sending your secure sign-in code...");
+    setError("");
+
+    const { error: otpError } = await supabase.auth.signInWithOtp({
+      email: targetEmail,
+      options: { shouldCreateUser: true },
+    });
+
+    if (otpError) {
+      setAuthStatus("error");
+      setAuthMessage(otpError.message);
+      return;
+    }
+
+    setEmail(targetEmail);
+    setOtpCode("");
+    setAuthStatus("code-sent");
+    setAuthMessage(`We sent a sign-in code to ${targetEmail}.`);
+  }
+
+  async function verifyCode() {
+    const supabase = getBrowserSupabase();
+    const targetEmail = normalizeEmail(email);
+    const token = otpCode.trim();
+
+    if (!supabase) {
+      setAuthStatus("error");
+      setAuthMessage("Supabase auth is not configured in this deployment.");
+      return;
+    }
+
+    if (!targetEmail || !token) {
+      setAuthStatus("error");
+      setAuthMessage("Enter your email and the code from your inbox.");
+      return;
+    }
+
+    setAuthStatus("verifying");
+    setAuthMessage("Verifying code...");
+
+    const { data, error: verifyError } = await supabase.auth.verifyOtp({
+      email: targetEmail,
+      token,
+      type: "email",
+    });
+
+    if (verifyError || !data.session?.access_token || !data.user?.email) {
+      setAuthStatus("error");
+      setAuthMessage(verifyError?.message || "Could not verify that code.");
+      return;
+    }
+
+    const sessionEmail = normalizeEmail(data.user.email);
+    setAccessToken(data.session.access_token);
+    setAuthenticatedEmail(sessionEmail);
+    setEmail(sessionEmail);
+    setAuthStatus("signed-in");
+    setAuthMessage(`Signed in as ${sessionEmail}.`);
+    window.localStorage.setItem("sellersignal_email", sessionEmail);
+    await refreshCredits(sessionEmail, data.session.access_token);
+  }
+
+  async function signOut() {
+    const supabase = getBrowserSupabase();
+    await supabase?.auth.signOut();
+    clearAccount();
+    setAccessToken("");
+    setAuthenticatedEmail("");
+    setOtpCode("");
+    setAuthStatus("idle");
+    setAuthMessage("Signed out.");
+  }
+
+  async function refreshCredits(emailToCheck = email, token = accessToken) {
+    const normalizedEmail = normalizeEmail(emailToCheck);
 
     if (!normalizedEmail) {
       setCreditStatus("error");
       setCreditMessage("Enter your email to check credits.");
+      return;
+    }
+
+    if (!token || authenticatedEmail && normalizedEmail !== authenticatedEmail) {
+      setCreditStatus("error");
+      setCreditMessage("Sign in with the email code before checking credits.");
       return;
     }
 
@@ -293,7 +451,9 @@ export function ReportBuilder() {
     setError("");
 
     try {
-      const response = await fetch(`/api/credits?email=${encodeURIComponent(normalizedEmail)}`);
+      const response = await fetch(`/api/credits?email=${encodeURIComponent(normalizedEmail)}`, {
+        headers: authHeaders(token),
+      });
       const data = await response.json();
 
       if (!response.ok) {
@@ -316,17 +476,19 @@ export function ReportBuilder() {
       setCreditMessage(`${data.balance} credit${data.balance === 1 ? "" : "s"} available for ${normalizedEmail}.`);
       setCreditFlash(true);
       window.setTimeout(() => setCreditFlash(false), 1400);
-      await refreshHistory(normalizedEmail);
+      await refreshHistory(normalizedEmail, token);
     } catch {
       setCreditStatus("error");
       setCreditMessage("Could not reach the credits endpoint. Check your deployment environment variables.");
     }
   }
 
-  async function refreshHistory(emailToCheck = email) {
-    if (!emailToCheck) return;
+  async function refreshHistory(emailToCheck = email, token = accessToken) {
+    if (!emailToCheck || !token) return;
 
-    const response = await fetch(`/api/report-history?email=${encodeURIComponent(emailToCheck)}`);
+    const response = await fetch(`/api/report-history?email=${encodeURIComponent(emailToCheck)}`, {
+      headers: authHeaders(token),
+    });
     const data = await response.json();
 
     if (response.ok) {
@@ -341,6 +503,11 @@ export function ReportBuilder() {
   function clearAccount() {
     window.localStorage.removeItem("sellersignal_email");
     setEmail("");
+    setAccessToken("");
+    setAuthenticatedEmail("");
+    setOtpCode("");
+    setAuthStatus("idle");
+    setAuthMessage("");
     setCreditBalance(null);
     setCreditStatus("idle");
     setCreditMessage("");
@@ -406,18 +573,58 @@ export function ReportBuilder() {
               className="mt-4 h-12 w-full rounded-md border border-neutral-200 px-3 outline-none focus:border-neutral-950"
               required
             />
+            <div className="mt-3 rounded-md border border-neutral-200 bg-neutral-50 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className={`text-xs ${isSignedIn ? "text-emerald-700" : "text-neutral-600"}`}>
+                  {isSignedIn ? `Verified as ${authenticatedEmail}` : authMessage || "Verify your email before using credits."}
+                </p>
+                {isSignedIn ? (
+                  <button type="button" onClick={signOut} className="text-xs font-semibold text-neutral-950 underline underline-offset-4">
+                    Sign out
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={sendCode}
+                    disabled={authStatus === "sending"}
+                    className="text-xs font-semibold text-neutral-950 underline underline-offset-4 disabled:opacity-60"
+                  >
+                    {authStatus === "sending" ? "Sending..." : "Send code"}
+                  </button>
+                )}
+              </div>
+              {!isSignedIn && (
+                <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+                  <input
+                    value={otpCode}
+                    onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, "").slice(0, 8))}
+                    placeholder="Enter email code"
+                    inputMode="numeric"
+                    className="h-10 rounded-md border border-neutral-200 px-3 text-sm outline-none focus:border-neutral-950"
+                  />
+                  <button
+                    type="button"
+                    onClick={verifyCode}
+                    disabled={authStatus === "verifying"}
+                    className="h-10 rounded-md bg-neutral-950 px-4 text-sm font-semibold text-white disabled:opacity-60"
+                  >
+                    {authStatus === "verifying" ? "Verifying..." : "Verify"}
+                  </button>
+                </div>
+              )}
+            </div>
             <div className="mt-3 flex items-center justify-between gap-3 rounded-md bg-neutral-100 p-3 text-xs text-neutral-600">
               <span>
                 {creditBalance === null
-                  ? "Use the Account & credits panel below to verify credits."
+                  ? "Sign in to check protected credits."
                   : `${creditBalance} credit${creditBalance === 1 ? "" : "s"} available for this email.`}
               </span>
-              <button type="button" onClick={() => refreshCredits()} className="font-semibold text-neutral-950">
+              <button type="button" onClick={() => refreshCredits()} disabled={!isSignedIn} className="font-semibold text-neutral-950 disabled:opacity-50">
                 Check credits
               </button>
             </div>
             <button
-              disabled={loading}
+              disabled={loading || !isSignedIn}
               className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-md bg-neutral-950 px-4 font-medium text-white transition hover:bg-neutral-800 disabled:cursor-wait disabled:opacity-70"
             >
               {loading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
@@ -611,8 +818,8 @@ export function ReportBuilder() {
               <p className="text-sm uppercase tracking-[0.25em] text-neutral-500">Account & credits</p>
               <h2 className="mt-3 text-3xl font-semibold tracking-normal">Check your available report credits.</h2>
               <p className="mt-3 text-sm leading-6 text-neutral-600">
-                Use the same email you used at checkout or during testing. SellerSignal will remember it on this browser so you can
-                come back and reopen saved reports.
+                Sign in with the same email you used at checkout. Credits and saved reports are protected by a one-time email code,
+                then remembered on this browser while your secure session is active.
               </p>
             </div>
             <div>
@@ -626,7 +833,7 @@ export function ReportBuilder() {
                 <button
                   type="button"
                   onClick={() => refreshCredits()}
-                  disabled={creditStatus === "checking"}
+                  disabled={creditStatus === "checking" || !isSignedIn}
                   className="flex h-12 items-center justify-center gap-2 rounded-md bg-neutral-950 px-5 text-sm font-semibold text-white disabled:opacity-70"
                 >
                   {creditStatus === "checking" && <Loader2 className="size-4 animate-spin" />}
@@ -635,6 +842,46 @@ export function ReportBuilder() {
                 <button type="button" onClick={clearAccount} className="h-12 rounded-md border border-neutral-200 px-4 text-sm font-semibold">
                   Clear
                 </button>
+              </div>
+              <div className="mt-3 rounded-md border border-neutral-200 bg-neutral-50 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className={`text-sm ${isSignedIn ? "text-emerald-700" : authStatus === "error" ? "text-red-600" : "text-neutral-600"}`}>
+                    {isSignedIn ? `Signed in as ${authenticatedEmail}` : authMessage || "Send a secure code to unlock credits and report history."}
+                  </p>
+                  {isSignedIn ? (
+                    <button type="button" onClick={signOut} className="text-sm font-semibold text-neutral-950 underline underline-offset-4">
+                      Sign out
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={sendCode}
+                      disabled={authStatus === "sending"}
+                      className="text-sm font-semibold text-neutral-950 underline underline-offset-4 disabled:opacity-60"
+                    >
+                      {authStatus === "sending" ? "Sending code..." : "Send code"}
+                    </button>
+                  )}
+                </div>
+                {!isSignedIn && (
+                  <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
+                    <input
+                      value={otpCode}
+                      onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, "").slice(0, 8))}
+                      placeholder="6-digit email code"
+                      inputMode="numeric"
+                      className="h-12 rounded-md border border-neutral-200 px-3 outline-none focus:border-neutral-950"
+                    />
+                    <button
+                      type="button"
+                      onClick={verifyCode}
+                      disabled={authStatus === "verifying"}
+                      className="h-12 rounded-md bg-neutral-950 px-5 text-sm font-semibold text-white disabled:opacity-70"
+                    >
+                      {authStatus === "verifying" ? "Verifying..." : "Verify code"}
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-[auto_1fr] sm:items-center">
                 <div className="rounded-md bg-neutral-100 px-4 py-3">
@@ -646,7 +893,7 @@ export function ReportBuilder() {
                     creditStatus === "success" ? "text-emerald-700" : creditStatus === "error" ? "text-red-600" : "text-neutral-500"
                   }`}
                 >
-                  {creditMessage || "Enter your email and click Check credits to confirm Vercel is connected to Supabase."}
+                  {creditMessage || "Sign in with your email code, then click Check credits."}
                 </p>
               </div>
             </div>

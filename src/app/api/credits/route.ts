@@ -1,20 +1,24 @@
 import { NextResponse } from "next/server";
-import { getCreditBalance, getOrCreateProfile, hasSupabaseAdmin } from "@/lib/supabase-admin";
+import { getAuthenticatedProfile } from "@/lib/auth";
+import { getCreditBalance, hasSupabaseAdmin } from "@/lib/supabase-admin";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const email = searchParams.get("email");
 
-  if (!email) {
-    return NextResponse.json({ error: "Email is required." }, { status: 400 });
-  }
-
   if (!hasSupabaseAdmin()) {
     return NextResponse.json({ balance: null, configured: false });
   }
 
-  const profile = await getOrCreateProfile(email);
-  const balance = await getCreditBalance(profile.id);
+  try {
+    const { profile, email: authenticatedEmail } = await getAuthenticatedProfile(request, email);
+    const balance = await getCreditBalance(profile.id);
 
-  return NextResponse.json({ balance, configured: true });
+    return NextResponse.json({ balance, email: authenticatedEmail, configured: true });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Could not authenticate this credit request." },
+      { status: 401 },
+    );
+  }
 }

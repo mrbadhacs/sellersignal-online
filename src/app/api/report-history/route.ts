@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getOrCreateProfile, getSupabaseAdmin, hasSupabaseAdmin } from "@/lib/supabase-admin";
+import { getAuthenticatedProfile } from "@/lib/auth";
+import { getSupabaseAdmin, hasSupabaseAdmin } from "@/lib/supabase-admin";
 import { InsightReport } from "@/lib/types";
 
 type ReportRow = {
@@ -15,15 +16,20 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const email = searchParams.get("email");
 
-  if (!email) {
-    return NextResponse.json({ error: "Email is required." }, { status: 400 });
-  }
-
   if (!hasSupabaseAdmin()) {
     return NextResponse.json({ reports: [], configured: false });
   }
 
-  const profile = await getOrCreateProfile(email);
+  let profile: Awaited<ReturnType<typeof getAuthenticatedProfile>>["profile"];
+  try {
+    ({ profile } = await getAuthenticatedProfile(request, email));
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Could not authenticate this report history request." },
+      { status: 401 },
+    );
+  }
+
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from("reports")
