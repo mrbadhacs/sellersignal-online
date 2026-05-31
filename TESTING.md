@@ -46,8 +46,8 @@ NEXT_PUBLIC_APP_URL=
 Current Stripe product mapping:
 
 ```txt
-STRIPE_PRICE_REPORT_100=Quick Signal, $29, 2 credits
-STRIPE_PRICE_REPORT_250=Research Pack, $79, 6 credits
+STRIPE_PRICE_REPORT_100=Quick Signal, $19, 2 credits
+STRIPE_PRICE_REPORT_250=Research Pack, $59, 6 credits
 STRIPE_PRICE_SOLO=Solo, $49/mo, 10 credits
 STRIPE_PRICE_GROWTH=Brand, $149/mo, 40 credits
 ```

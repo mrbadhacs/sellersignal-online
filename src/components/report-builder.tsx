@@ -13,8 +13,8 @@ const plans = [
 ];
 
 const oneTimeReports = [
-  { key: "starter", label: "Quick Signal", price: "$29", credits: "2 credits", detail: "Two full reports using best-effort public review retrieval." },
-  { key: "growth", label: "Research Pack", price: "$79", credits: "6 credits", detail: "Six full reports for checking several competitor products." },
+  { key: "starter", label: "Quick Signal", price: "$19", credits: "2 credits", detail: "Two full reports using best-effort public review retrieval." },
+  { key: "growth", label: "Research Pack", price: "$59", credits: "6 credits", detail: "Six full reports for checking several competitor products." },
 ];
 
 const oneTimeCompare = [
