@@ -4,6 +4,8 @@ import { ReviewRecord } from "./types";
 const DEFAULT_ACTOR_ID = "automation-lab/amazon-reviews-scraper";
 const ACTOR_MAX_REVIEWS_PER_RUN = 100;
 const CANOPY_PAGE_SIZE = 10;
+const CANOPY_MAX_REQUESTS = 18;
+const CANOPY_RATING_FILTERS = ["ALL", "FIVE_STAR", "FOUR_STAR", "THREE_STAR", "TWO_STAR", "ONE_STAR"] as const;
 const PROVIDER_TIMEOUT_MS = 50_000;
 const REVIEW_PASSES = [
   { sort: "recent", filterByStars: "all" },
@@ -11,7 +13,13 @@ const REVIEW_PASSES = [
 
 type ScrapeResult = {
   asin: string;
+  provider: string;
   productName: string;
+  reviews: ReviewRecord[];
+};
+
+type CanopyPageResult = {
+  productName?: string;
   reviews: ReviewRecord[];
 };
 
@@ -62,6 +70,8 @@ export async function scrapeAmazonReviews(productUrl: string, maxReviews: number
       continue;
     }
 
+    console.info(`[reviews] ${result.value.provider} returned ${result.value.reviews.length} reviews for ${asin}`);
+
     if (result.value.productName !== `Amazon ASIN ${asin}` && productName === `Amazon ASIN ${asin}`) {
       productName = result.value.productName;
     }
@@ -75,12 +85,19 @@ export async function scrapeAmazonReviews(productUrl: string, maxReviews: number
 
   const reviews = Array.from(reviewMap.values()).slice(0, maxReviews);
 
+  if (providerErrors.length > 0) {
+    console.warn(`[reviews] provider issues for ${asin}: ${providerErrors.join(" | ")}`);
+  }
+
   if (reviews.length === 0 && providerErrors.length > 0) {
     throw new Error(providerErrors.join(" "));
   }
 
+  console.info(`[reviews] combined ${reviews.length} deduped reviews for ${asin}`);
+
   return {
     asin,
+    provider: "combined",
     productName,
     reviews,
   };
@@ -105,6 +122,7 @@ async function scrapeApifyReviews(asin: string, normalizedProductUrl: string, ma
     const { items } = await client.dataset(run.defaultDatasetId).listItems();
     return {
       asin,
+      provider: "Apify",
       productName: String(items[0]?.productName ?? items[0]?.productTitle ?? items[0]?.product_title ?? `Amazon ASIN ${asin}`),
       reviews: normalizeReviews(asRecordArray(items)).slice(0, maxReviews),
     };
@@ -152,6 +170,7 @@ async function scrapeApifyReviews(asin: string, normalizedProductUrl: string, ma
 
   return {
     asin,
+    provider: "Apify",
     productName,
     reviews,
   };
@@ -160,55 +179,88 @@ async function scrapeApifyReviews(asin: string, normalizedProductUrl: string, ma
 async function scrapeCanopyReviews(asin: string, maxReviews: number): Promise<ScrapeResult> {
   const apiKey = process.env.CANOPY_API_KEY?.trim();
   if (!apiKey) {
-    return { asin, productName: `Amazon ASIN ${asin}`, reviews: [] };
+    return { asin, provider: "Canopy", productName: `Amazon ASIN ${asin}`, reviews: [] };
   }
 
   const targetReviews = Math.min(maxReviews, Number(process.env.CANOPY_MAX_REVIEWS || maxReviews), 500);
-  const pages = Math.max(1, Math.ceil(targetReviews / CANOPY_PAGE_SIZE));
+  const allPages = Math.min(Math.max(1, Math.ceil(targetReviews / CANOPY_PAGE_SIZE)), 10);
+  const requests: Array<{ rating: typeof CANOPY_RATING_FILTERS[number]; page: number }> = [];
+  for (let page = 1; page <= allPages; page += 1) {
+    requests.push({ rating: "ALL", page });
+  }
+  for (const rating of CANOPY_RATING_FILTERS) {
+    if (rating === "ALL") continue;
+    for (let page = 1; page <= 2 && requests.length < CANOPY_MAX_REQUESTS; page += 1) {
+      requests.push({ rating, page });
+    }
+  }
+
   const reviewMap = new Map<string, ReviewRecord>();
   let productName = `Amazon ASIN ${asin}`;
+  const errors: string[] = [];
 
-  for (let page = 1; page <= pages; page += 1) {
+  for (let index = 0; index < requests.length; index += 4) {
     if (reviewMap.size >= targetReviews) break;
+    const batch = requests.slice(index, index + 4);
+    const results = await Promise.allSettled(
+      batch.map((request) => fetchCanopyPage(asin, apiKey, request.rating, request.page)),
+    );
 
-    const url = new URL("https://api.canopyapi.co/v1/amazon/product/reviews");
-    url.searchParams.set("asin", asin);
-    url.searchParams.set("domain", "US");
-    url.searchParams.set("page", String(page));
-    url.searchParams.set("rating", "ALL");
-    url.searchParams.set("onlyVerifiedReviews", "false");
+    for (const result of results) {
+      if (result.status === "rejected") {
+        errors.push(result.reason instanceof Error ? result.reason.message : "Canopy request failed.");
+        continue;
+      }
 
-    const response = await fetch(url, {
-      headers: {
-        "API-KEY": apiKey,
-        Authorization: `Bearer ${apiKey}`,
-      },
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Canopy returned ${response.status}: ${text.slice(0, 180)}`);
+      productName = result.value.productName || productName;
+      for (const review of result.value.reviews) {
+        reviewMap.set(createReviewKey(review), review);
+        if (reviewMap.size >= targetReviews) break;
+      }
     }
+  }
 
-    const payload = await response.json() as unknown;
-    productName = getProductName(payload) || productName;
-    const reviews = normalizeReviews(collectReviewLikeRecords(payload));
-
-    if (reviews.length === 0) break;
-
-    for (const review of reviews) {
-      reviewMap.set(createReviewKey(review), review);
-      if (reviewMap.size >= targetReviews) break;
-    }
-
-    if (reviews.length < CANOPY_PAGE_SIZE) break;
+  if (reviewMap.size === 0 && errors.length > 0) {
+    throw new Error(errors[0]);
   }
 
   return {
     asin,
+    provider: "Canopy",
     productName,
     reviews: Array.from(reviewMap.values()).slice(0, maxReviews),
+  };
+}
+
+async function fetchCanopyPage(
+  asin: string,
+  apiKey: string,
+  rating: typeof CANOPY_RATING_FILTERS[number],
+  page: number,
+): Promise<CanopyPageResult> {
+  const url = new URL("https://api.canopyapi.co/v1/amazon/product/reviews");
+  url.searchParams.set("asin", asin);
+  url.searchParams.set("domain", "US");
+  url.searchParams.set("page", String(page));
+  url.searchParams.set("rating", rating);
+  url.searchParams.set("onlyVerifiedReviews", "false");
+
+  const response = await fetch(url, {
+    headers: {
+      "API-KEY": apiKey,
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Canopy ${rating} page ${page} returned ${response.status}: ${text.slice(0, 180)}`);
+  }
+
+  const payload = await response.json() as unknown;
+  return {
+    productName: getProductName(payload),
+    reviews: normalizeReviews(collectReviewLikeRecords(payload)),
   };
 }
 
