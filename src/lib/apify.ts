@@ -9,6 +9,10 @@ const CANOPY_REVIEW_ENDPOINTS = [
   "https://rest.canopyapi.co/api/amazon/product/reviews",
   "https://api.canopyapi.co/v1/amazon/product/reviews",
 ] as const;
+const CANOPY_PRODUCT_ENDPOINTS = [
+  "https://rest.canopyapi.co/api/amazon/product",
+  "https://api.canopyapi.co/v1/amazon/product",
+] as const;
 const CANOPY_RATING_FILTERS = ["ALL", "FIVE_STAR", "FOUR_STAR", "THREE_STAR", "TWO_STAR", "ONE_STAR"] as const;
 const PROVIDER_TIMEOUT_MS = 50_000;
 const REVIEW_PASSES = [
@@ -106,7 +110,7 @@ export async function scrapeAmazonReviews(productUrl: string, maxReviews: number
   return {
     asin,
     provider: "combined",
-    productName,
+    productName: formatProductName(productName, asin),
     reviews,
   };
 }
@@ -204,7 +208,7 @@ async function scrapeCanopyReviews(asin: string, maxReviews: number): Promise<Sc
   }
 
   const reviewMap = new Map<string, ReviewRecord>();
-  let productName = `Amazon ASIN ${asin}`;
+  let productName = await fetchCanopyProductName(asin, apiKey).catch(() => undefined) || `Amazon ASIN ${asin}`;
   const errors: string[] = [];
 
   for (let index = 0; index < requests.length; index += 4) {
@@ -235,7 +239,7 @@ async function scrapeCanopyReviews(asin: string, maxReviews: number): Promise<Sc
   return {
     asin,
     provider: "Canopy",
-    productName,
+    productName: formatProductName(productName, asin),
     reviews: Array.from(reviewMap.values()).slice(0, maxReviews),
   };
 }
@@ -266,13 +270,16 @@ export async function testCanopyProvider(asin: string) {
   }
 
   try {
-    const result = await fetchCanopyPage(normalizedAsin, apiKey, "ALL", 1);
+    const [productName, result] = await Promise.all([
+      fetchCanopyProductName(normalizedAsin, apiKey).catch(() => undefined),
+      fetchCanopyPage(normalizedAsin, apiKey, "ALL", 1),
+    ]);
     return {
       configured: true,
       endpoint,
       asin: normalizedAsin,
       reviewCount: result.reviews.length,
-      productName: result.productName,
+      productName: formatProductName(productName || result.productName || `Amazon ASIN ${normalizedAsin}`, normalizedAsin),
     };
   } catch (error) {
     return {
@@ -337,6 +344,39 @@ async function fetchCanopyPage(
   throw new Error(`Canopy ${rating} page ${page} failed. ${errors.join(" | ")}`);
 }
 
+async function fetchCanopyProductName(asin: string, apiKey: string) {
+  const errors: string[] = [];
+
+  for (const endpoint of CANOPY_PRODUCT_ENDPOINTS) {
+    const url = new URL(endpoint);
+    url.searchParams.set("asin", asin);
+    url.searchParams.set("domain", "US");
+
+    try {
+      const response = await fetch(url, {
+        headers: {
+          "API-KEY": apiKey,
+        },
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        errors.push(`${endpoint} returned ${response.status}: ${text.slice(0, 180)}`);
+        continue;
+      }
+
+      const payload = await response.json() as unknown;
+      return getProductName(payload);
+    } catch (error) {
+      errors.push(`${endpoint} failed: ${describeFetchError(error)}`);
+    }
+  }
+
+  console.warn(`[reviews] Canopy product title lookup failed for ${asin}: ${errors.join(" | ")}`);
+  return undefined;
+}
+
 function normalizeReviews(items: Record<string, unknown>[]) {
   return items.map((item) => ({
     rating: Number(item.rating ?? item.ratingScore ?? item.reviewRating ?? item.stars ?? 0),
@@ -393,7 +433,7 @@ function collectReviewLikeRecords(value: unknown, depth = 0): Record<string, unk
 function getProductName(value: unknown): string | undefined {
   if (!isRecord(value)) return undefined;
 
-  const title = value.title ?? value.productName ?? value.productTitle ?? value.product_title;
+  const title = value.title ?? value.name ?? value.productName ?? value.productTitle ?? value.product_title;
   if (typeof title === "string" && title.trim().length > 0) return title;
 
   for (const child of Object.values(value)) {
@@ -403,6 +443,14 @@ function getProductName(value: unknown): string | undefined {
   }
 
   return undefined;
+}
+
+function formatProductName(productName: string | undefined, asin: string) {
+  const fallback = `Amazon ASIN ${asin}`;
+  const cleanName = productName?.trim() || fallback;
+  if (cleanName.toUpperCase().includes(asin)) return cleanName;
+  if (cleanName === fallback) return fallback;
+  return `${cleanName} (ASIN ${asin})`;
 }
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, providerName: string): Promise<T> {

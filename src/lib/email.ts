@@ -38,6 +38,12 @@ function formatPercent(value: number) {
   return `${Math.round(value)}%`;
 }
 
+function formatFromAddress(from: string) {
+  if (from.includes("<")) return from;
+  const name = process.env.REPORT_FROM_NAME || "Your SellerSignal Report";
+  return `${name} <${from}>`;
+}
+
 export async function emailReport(to: string | undefined, report: InsightReport) {
   const resend = getResend();
   const from = process.env.REPORT_FROM_EMAIL;
@@ -51,9 +57,9 @@ export async function emailReport(to: string | undefined, report: InsightReport)
     : `${report.reviewCount} reviews analyzed.`;
 
   const result = await resend.emails.send({
-    from,
+    from: formatFromAddress(from),
     to,
-    subject: `Your ${report.productName} review intelligence report`,
+    subject: `Your SellerSignal report: ${report.productName}`,
     text: [
       `SellerSignal report: ${report.productName}`,
       retrievalNote,
