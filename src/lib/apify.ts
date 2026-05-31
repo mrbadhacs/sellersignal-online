@@ -5,6 +5,10 @@ const DEFAULT_ACTOR_ID = "automation-lab/amazon-reviews-scraper";
 const ACTOR_MAX_REVIEWS_PER_RUN = 100;
 const CANOPY_PAGE_SIZE = 10;
 const CANOPY_MAX_REQUESTS = 18;
+const CANOPY_REVIEW_ENDPOINTS = [
+  "https://rest.canopyapi.co/api/amazon/product/reviews",
+  "https://api.canopyapi.co/v1/amazon/product/reviews",
+] as const;
 const CANOPY_RATING_FILTERS = ["ALL", "FIVE_STAR", "FOUR_STAR", "THREE_STAR", "TWO_STAR", "ONE_STAR"] as const;
 const PROVIDER_TIMEOUT_MS = 50_000;
 const REVIEW_PASSES = [
@@ -249,7 +253,7 @@ export function getReviewProviderStatus() {
 export async function testCanopyProvider(asin: string) {
   const normalizedAsin = extractAsin(asin);
   const apiKey = getCanopyApiKey();
-  const endpoint = "https://api.canopyapi.co/v1/amazon/product/reviews";
+  const endpoint = CANOPY_REVIEW_ENDPOINTS[0];
 
   if (!apiKey) {
     return {
@@ -296,30 +300,41 @@ async function fetchCanopyPage(
   rating: typeof CANOPY_RATING_FILTERS[number],
   page: number,
 ): Promise<CanopyPageResult> {
-  const url = new URL("https://api.canopyapi.co/v1/amazon/product/reviews");
-  url.searchParams.set("asin", asin);
-  url.searchParams.set("domain", "US");
-  url.searchParams.set("page", String(page));
-  url.searchParams.set("rating", rating);
-  url.searchParams.set("onlyVerifiedReviews", "false");
+  const errors: string[] = [];
 
-  const response = await fetch(url, {
-    headers: {
-      "API-KEY": apiKey,
-    },
-    cache: "no-store",
-  });
+  for (const endpoint of CANOPY_REVIEW_ENDPOINTS) {
+    const url = new URL(endpoint);
+    url.searchParams.set("asin", asin);
+    url.searchParams.set("domain", "US");
+    url.searchParams.set("page", String(page));
+    url.searchParams.set("rating", rating);
+    url.searchParams.set("onlyVerifiedReviews", "false");
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Canopy ${rating} page ${page} returned ${response.status}: ${text.slice(0, 180)}`);
+    try {
+      const response = await fetch(url, {
+        headers: {
+          "API-KEY": apiKey,
+        },
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        errors.push(`${endpoint} returned ${response.status}: ${text.slice(0, 180)}`);
+        continue;
+      }
+
+      const payload = await response.json() as unknown;
+      return {
+        productName: getProductName(payload),
+        reviews: normalizeReviews(collectReviewLikeRecords(payload)),
+      };
+    } catch (error) {
+      errors.push(`${endpoint} failed: ${describeFetchError(error)}`);
+    }
   }
 
-  const payload = await response.json() as unknown;
-  return {
-    productName: getProductName(payload),
-    reviews: normalizeReviews(collectReviewLikeRecords(payload)),
-  };
+  throw new Error(`Canopy ${rating} page ${page} failed. ${errors.join(" | ")}`);
 }
 
 function normalizeReviews(items: Record<string, unknown>[]) {
@@ -401,4 +416,16 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, providerName: str
   } finally {
     if (timeout) clearTimeout(timeout);
   }
+}
+
+function describeFetchError(error: unknown) {
+  if (!(error instanceof Error)) return "unknown error";
+  const cause = "cause" in error ? error.cause : undefined;
+  if (cause instanceof Error) return `${error.message} (${cause.message})`;
+  if (isRecord(cause)) {
+    const code = typeof cause.code === "string" ? cause.code : "";
+    const hostname = typeof cause.hostname === "string" ? cause.hostname : "";
+    return [error.message, code, hostname].filter(Boolean).join(" ");
+  }
+  return error.message;
 }
