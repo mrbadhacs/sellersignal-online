@@ -40,6 +40,7 @@ OPENAI_API_KEY=
 APIFY_API_TOKEN=
 # Optional: adds a stronger paginated review source. The app combines Canopy + Apify when both are set.
 CANOPY_API_KEY=
+# Also accepted: CANOPYAPI_API_KEY or CANOPY_TOKEN
 CANOPY_MAX_REVIEWS=100
 RESEND_API_KEY=
 REPORT_FROM_EMAIL=reports@sellersignal.online
@@ -82,10 +83,11 @@ customer.subscription.deleted
 1. Enter your email in the report form.
 2. Click `Check credits`.
 3. Confirm your manual credit balance appears.
-4. Paste an Amazon product URL.
-5. Generate a report.
-6. If `CANOPY_API_KEY` is configured, confirm the same ASIN returns more than the Apify-only public/top review slice.
-7. Confirm credits decrement in the UI and in Supabase.
-8. Test a Stripe checkout with `4242 4242 4242 4242`.
-9. Confirm Stripe webhook events show a `200`.
-10. Check Supabase `credit_ledger` for the new credit row.
+4. Open `/api/provider-status` on the deployed domain and confirm `canopyConfigured` is `true`.
+5. Paste an Amazon product URL.
+6. Generate a report.
+7. If `CANOPY_API_KEY` is configured, confirm the same ASIN returns more than the Apify-only public/top review slice.
+8. Confirm credits decrement in the UI and in Supabase.
+9. Test a Stripe checkout with `4242 4242 4242 4242`.
+10. Confirm Stripe webhook events show a `200`.
+11. Check Supabase `credit_ledger` for the new credit row.

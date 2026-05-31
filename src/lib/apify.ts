@@ -46,12 +46,16 @@ export async function scrapeAmazonReviews(productUrl: string, maxReviews: number
   const asin = extractAsin(productUrl);
   const normalizedProductUrl = `https://www.amazon.com/dp/${asin}`;
   const providers: Array<Promise<ScrapeResult>> = [];
+  const canopyConfigured = Boolean(getCanopyApiKey());
+  const apifyConfigured = Boolean(process.env.APIFY_API_TOKEN);
 
-  if (process.env.CANOPY_API_KEY) {
+  console.info(`[reviews] provider config for ${asin}: canopy=${canopyConfigured} apify=${apifyConfigured}`);
+
+  if (canopyConfigured) {
     providers.push(withTimeout(scrapeCanopyReviews(asin, maxReviews), PROVIDER_TIMEOUT_MS, "Canopy"));
   }
 
-  if (process.env.APIFY_API_TOKEN) {
+  if (apifyConfigured) {
     providers.push(withTimeout(scrapeApifyReviews(asin, normalizedProductUrl, maxReviews), PROVIDER_TIMEOUT_MS, "Apify"));
   }
 
@@ -177,7 +181,7 @@ async function scrapeApifyReviews(asin: string, normalizedProductUrl: string, ma
 }
 
 async function scrapeCanopyReviews(asin: string, maxReviews: number): Promise<ScrapeResult> {
-  const apiKey = process.env.CANOPY_API_KEY?.trim();
+  const apiKey = getCanopyApiKey();
   if (!apiKey) {
     return { asin, provider: "Canopy", productName: `Amazon ASIN ${asin}`, reviews: [] };
   }
@@ -230,6 +234,25 @@ async function scrapeCanopyReviews(asin: string, maxReviews: number): Promise<Sc
     productName,
     reviews: Array.from(reviewMap.values()).slice(0, maxReviews),
   };
+}
+
+export function getReviewProviderStatus() {
+  return {
+    apifyConfigured: Boolean(process.env.APIFY_API_TOKEN),
+    apifyActorId: process.env.APIFY_ACTOR_ID || DEFAULT_ACTOR_ID,
+    canopyConfigured: Boolean(getCanopyApiKey()),
+    canopyMaxReviews: Number(process.env.CANOPY_MAX_REVIEWS || 100),
+    acceptedCanopySecretNames: ["CANOPY_API_KEY", "CANOPYAPI_API_KEY", "CANOPY_TOKEN"],
+  };
+}
+
+function getCanopyApiKey() {
+  return (
+    process.env.CANOPY_API_KEY?.trim()
+    || process.env.CANOPYAPI_API_KEY?.trim()
+    || process.env.CANOPY_TOKEN?.trim()
+    || ""
+  );
 }
 
 async function fetchCanopyPage(
