@@ -246,6 +246,41 @@ export function getReviewProviderStatus() {
   };
 }
 
+export async function testCanopyProvider(asin: string) {
+  const normalizedAsin = extractAsin(asin);
+  const apiKey = getCanopyApiKey();
+  const endpoint = "https://api.canopyapi.co/v1/amazon/product/reviews";
+
+  if (!apiKey) {
+    return {
+      configured: false,
+      endpoint,
+      asin: normalizedAsin,
+      reviewCount: 0,
+      error: "No Canopy API key was found in this deployment.",
+    };
+  }
+
+  try {
+    const result = await fetchCanopyPage(normalizedAsin, apiKey, "ALL", 1);
+    return {
+      configured: true,
+      endpoint,
+      asin: normalizedAsin,
+      reviewCount: result.reviews.length,
+      productName: result.productName,
+    };
+  } catch (error) {
+    return {
+      configured: true,
+      endpoint,
+      asin: normalizedAsin,
+      reviewCount: 0,
+      error: error instanceof Error ? error.message : "Canopy test request failed.",
+    };
+  }
+}
+
 function getCanopyApiKey() {
   return (
     process.env.CANOPY_API_KEY?.trim()
