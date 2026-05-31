@@ -80,7 +80,10 @@ export async function POST(request: Request) {
           reason: `generated ${REVIEW_TIERS[tier].label} demo report`,
         });
       }
-      await emailReport(email || undefined, report);
+      const emailResult = await emailReport(email || undefined, report);
+      if (!emailResult?.sent) {
+        console.warn(`[email] demo report email was not sent: ${emailResult?.reason || "unknown reason"}`);
+      }
       return NextResponse.json({ report });
     }
 
@@ -114,7 +117,12 @@ export async function POST(request: Request) {
       });
     }
 
-    await emailReport(email || undefined, report);
+    const emailResult = await emailReport(email || undefined, report);
+    if (emailResult?.sent) {
+      console.info(`[email] report email sent to ${email}: ${emailResult.id || "accepted"}`);
+    } else {
+      console.warn(`[email] report email was not sent to ${email}: ${emailResult?.reason || "unknown reason"}`);
+    }
 
     return NextResponse.json({ report });
   } catch (error) {
